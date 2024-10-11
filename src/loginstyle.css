@@ -15,7 +15,7 @@ nav {
     left: 50%;
     transform: translateX(-50%);
     width: 100%;
-    background-color: #f8f8f8;
+    background-color: #1A4D2E;
     box-shadow: 0px 4px 2px -2px gray;
     z-index: 1000; 
     padding: 10px 0;
@@ -38,17 +38,18 @@ li {
 li.name {
     font-weight: bold;
     font-size: 1.2em;
+    color: #eee;
 }
 
 li a {
     text-align: center;
     padding: 14px 16px;
     text-decoration: none;
-    color: #333;
+    color: white;
 }
 
 li a:hover {
-    background-color: #4F6F52;
+    background-color: #508D4E;
     color: white;
 }
 
@@ -57,7 +58,7 @@ main {
     margin-top: 50px;
     width: 350px;
     height: 500px;
-    background: #1A4D2E;
+    background: #72BF78;
     overflow: hidden;
     border-radius: 10px;
     box-shadow: 5px 20px 50px #000;
@@ -67,7 +68,7 @@ main {
     display: none;
 }
 
-.signup { 
+#signup { 
     position: relative;
     width: 100%;
     height: 100%;
@@ -88,7 +89,7 @@ label {
 input {
     width: 60%;
     height: 18px;
-    background: #e0dede;
+    background: white;
     justify-content: center;
     display: flex;
     margin: 20px auto;
@@ -117,10 +118,11 @@ button {
 }
 
 button:hover {
-    background:#e0dede;
+    background:white;
+    color: black;
 }
 
-.login {
+#login {
     height: 460px;
     background: #eee;
     border-radius: 60% / 10%;
@@ -128,20 +130,20 @@ button:hover {
     transition: .8s ease-in-out;
 }
 
-.login label {
+#login label {
     color:#000;
     transform: scale(.6);
 }
 
-#chk:checked ~ .login {
+#chk:checked ~ #login {
     transform: translateY(-500px);
 }
 
-#chk:checked ~ .login label{
+#chk:checked ~ #login label{
     transform: scale(1);
 }
 
-#chk:checked ~ .signup label{
+#chk:checked ~ #signup label{
     transform: scale(.6);
 }
 

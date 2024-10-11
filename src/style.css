@@ -74,6 +74,20 @@ h2 {
     outline: whitesmoke;
 }
 
+.about-section {
+    margin: 30px;
+    
+}
+
+.about-title {
+    text-align: center;
+    font-size: 40px;
+}
+
+.about-info {
+    margin: 30px;
+}
+
 footer {
     position: absolute;
     bottom: 0;
