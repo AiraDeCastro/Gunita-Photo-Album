@@ -86,6 +86,10 @@ li a:hover {
     z-index: 1;
 }
 
+.landing-description {
+    margin: 150px;
+}
+
 /* Landing Page Content */
 .content {
     position: relative;
