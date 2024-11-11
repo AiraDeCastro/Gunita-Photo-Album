@@ -90,6 +90,16 @@ li a:hover {
     margin: 150px;
 }
 
+.landing-theme {
+    margin: 150px;
+}
+
+.landing-theme p {
+    display: flex;
+    flex-direction: row;
+    justify-content: space-between;
+}
+
 /* Landing Page Content */
 .content {
     position: relative;
