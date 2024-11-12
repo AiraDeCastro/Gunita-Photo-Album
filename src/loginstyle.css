@@ -1,162 +1,163 @@
 body {
-    margin: 0;
-    padding: 0;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    min-height: 100vh;
-    font-family: 'Jost', sans-serif;
-    background-color: #F5EFE6;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  font-family: "Jost", sans-serif;
+  background-color: #f5efe6;
 }
 
 nav {
-    position: fixed;
-    top: 0;
-    left: 50%;
-    transform: translateX(-50%);
-    width: 100%;
-    background-color: #f8f8f8;
-    box-shadow: 0px 4px 2px -2px gray;
-    z-index: 1000; 
-    padding: 10px 0;
+  position: fixed;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 100%;
+  background-color: #f8f8f8;
+  box-shadow: 0px 4px 2px -2px gray;
+  z-index: 1000;
+  padding: 10px 0;
 }
 
 ul {
-    list-style: none;
-    margin: 0;
-    padding: 0;
-    display: flex;
-    justify-content: center;
-    align-items: center;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
 }
 
 li {
-    display: inline;
-    margin: 0 15px;
+  display: inline;
+  margin: 0 15px;
 }
 
 li.name {
-    font-weight: bold;
-    font-size: 1.2em;
-    color: black;
+  font-weight: bold;
+  font-size: 1.2em;
+  color: black;
 }
 
 li a {
-    text-align: center;
-    padding: 14px 16px;
-    text-decoration: none;
-    color: black;
+  text-align: center;
+  padding: 14px 16px;
+  text-decoration: none;
+  color: black;
 }
 
 li a:hover {
-    background-color: #508D4E;
-    color: white;
+  background-color: #508d4e;
+  color: white;
 }
 
 main {
-    display: flexbox;
-    margin-top: 50px;
-    width: 350px;
-    height: 500px;
-    background: #72BF78;
-    overflow: hidden;
-    border-radius: 10px;
-    box-shadow: 5px 20px 50px #000;
+  display: flexbox;
+  margin-top: 20px;
+  width: 350px;
+  height: 500px;
+  background: #72bf78;
+  overflow: hidden;
+  border-radius: 10px;
+  box-shadow: 5px 20px 50px #000;
 }
 
 #chk {
-    display: none;
+  display: none;
 }
 
-#signup { 
-    position: relative;
-    width: 100%;
-    height: 100%;
+#signup {
+  position: relative;
+  width: 100%;
+  height: 100%;
 }
 
 label {
-    color: #fff;
-    font-size: 2.3em;
-    justify-content: center;
-    display: flex;
-    margin: 60px;
-    padding-top: 1px;
-    font-weight: bold;
-    cursor: pointer;
-    transition: .5s ease-in-out;
+  color: #fff;
+  font-size: 2.3em;
+  justify-content: center;
+  display: flex;
+  margin: 60px;
+  padding-top: 1px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: 0.5s ease-in-out;
 }
 
 input {
-    width: 60%;
-    height: 18px;
-    background: white;
-    justify-content: center;
-    display: flex;
-    margin: 20px auto;
-    padding: 10px;
-    border: none;
-    outline: none;
-    border-radius: 5px;
+  width: 60%;
+  height: 18px;
+  background: white;
+  justify-content: center;
+  display: flex;
+  margin: 20px auto;
+  padding: 10px;
+  border: none;
+  outline: none;
+  border-radius: 5px;
 }
 
 button {
-    width: 60%;
-    height: 40px;
-    margin: 10px auto;
-    justify-content: center;
-    display: block;
-    color: #fff;
-    background: #000;
-    font-size: 1em;
-    font-weight: bold;
-    margin-top: 20px;
-    outline: none;
-    border: none;
-    border-radius: 5px;
-    transition: .2s ease-in;
-    cursor: pointer;
+  width: 60%;
+  height: 40px;
+  margin: 10px auto;
+  justify-content: center;
+  display: block;
+  color: #fff;
+  background: #000;
+  font-size: 1em;
+  font-weight: bold;
+  margin-top: 20px;
+  outline: none;
+  border: none;
+  border-radius: 5px;
+  transition: 0.2s ease-in;
+  cursor: pointer;
 }
 
 button:hover {
-    background:white;
-    color: black;
+  background: white;
+  color: black;
 }
 
 #login {
-    height: 460px;
-    background: #eee;
-    border-radius: 60% / 10%;
-    transform: translateY(-180px);
-    transition: .8s ease-in-out;
+  height: 460px;
+  background: #eee;
+  border-radius: 60% / 10%;
+  transform: translateY(-180px);
+  transition: 0.8s ease-in-out;
 }
 
 #login label {
-    color:#000;
-    transform: scale(.6);
+  color: #000;
+  transform: scale(0.6);
 }
 
 #chk:checked ~ #login {
-    transform: translateY(-500px);
+  transform: translateY(-500px);
 }
 
-#chk:checked ~ #login label{
-    transform: scale(1);
+#chk:checked ~ #login label {
+  transform: scale(1);
 }
 
-#chk:checked ~ #signup label{
-    transform: scale(.6);
+#chk:checked ~ #signup label {
+  transform: scale(0.6);
 }
 
 footer {
-    position: absolute;
-    bottom: 0;
-    width: 644px;
-    height: 20px;
-    margin: 0 auto;
+  position: absolute;
+  bottom: 0;
+  width: 100%;
+  background-color: #f8f8f8;
+  color: #333;
+  text-align: center;
+  box-shadow: 0 -2px 4px rgba(0, 0, 0, 0.1);
 }
 
 #linkforget {
-    color:#000 ;
-    margin-left: 111px;
+  color: #000;
+  margin-left: 111px;
 }
-
