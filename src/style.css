@@ -97,7 +97,7 @@ h1 {
 .landing-description {
   text-align: center;
   padding: 50px;
-  height: 500px;
+  height: 300px;
   background-color: black;
   color: white;
 }
@@ -111,7 +111,7 @@ h1 {
 /* Container Styling */
 .landing-theme {
   text-align: center;
-  padding: 50px;
+  padding: 20px;
   height: 500px;
   background-color: white;
 }
@@ -128,7 +128,6 @@ h1 {
   display: flex;
   justify-content: space-between;
   gap: 10px;
-  max-width: 80%;
   margin: 0 auto;
 }
 
@@ -143,14 +142,62 @@ h1 {
   justify-content: center;
   align-items: center;
   border-radius: 8px;
-  box-shadow: 2px 4px 8px rgba(0, 0, 0, 0.1);
   font-size: 1.2em;
   font-weight: bold;
   text-align: center;
 }
 
+.landing-reviews {
+  text-align: center;
+  padding: 50px;
+  height: 300px;
+  background-color: beige;
+}
+
+.landing-questions {
+  text-align: center;
+  padding: 50px;
+  height: 500px;
+  background-color: black;
+  color: white;
+}
+
+.landing-contactus {
+  text-align: center;
+  padding: 50px;
+  height: 300px;
+  background-color: beige;
+}
+
+.socialmedia {
+  text-align: center;
+  justify-content: center;
+  align-items: center;
+  padding: 50px;
+  height: 100px;
+  background-color: black;
+  color: white;
+  display: flex;
+  gap: 80px;
+}
 /* Responsive adjustments for smaller screens */
-@media (max-width: 768px) {
+@media only screen and (max-width: 800px) {
+  .landing-theme {
+    padding: 50px;
+  }
+
+  .box-container {
+    flex-direction: column;
+    gap: 30px;
+  }
+
+  .box {
+    min-width: 100%;
+    height: 100px;
+  }
+}
+
+@media only screen and (max-width: 500px) {
   .box-container {
     flex-direction: column;
     gap: 15px;
@@ -158,7 +205,6 @@ h1 {
 
   .box {
     min-width: 100%;
-    height: 150px;
   }
 }
 
@@ -177,7 +223,7 @@ h1 {
   text-align: center;
   display: inline-block;
   font-size: larger;
-  padding: 8px 30px 8px 30px;
+  padding: 10px 40px 10px 40px;
   margin-top: 30px;
 }
 
