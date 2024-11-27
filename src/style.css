@@ -98,13 +98,10 @@ h1 {
   text-align: center;
   padding: 50px;
   height: 300px;
-  background-color: black;
-  color: white;
 }
 
 .landing-description h2 {
   font-size: 2em;
-  color: whitesmoke;
   margin-bottom: 10px;
 }
 
@@ -160,6 +157,8 @@ h1 {
   height: 500px;
   background-color: black;
   color: white;
+  border-radius: 30px;
+  margin: 10px;
 }
 
 .landing-contactus {
