@@ -144,11 +144,9 @@ h1 {
 }
 
 .icon {
-  height: 80px;
-  display: block;
+  height: 85px;
+  display: flex;
   margin-bottom: 10px;
-  justify-content: center;
-  align-items: center;
 }
 
 .landing-reviews {
