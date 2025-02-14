@@ -134,7 +134,6 @@ h1 {
   min-width: 150px;
   height: 200px;
   background-color: #4f6f52;
-  color: white;
   display: flex;
   justify-content: center;
   align-items: center;
@@ -142,6 +141,14 @@ h1 {
   font-size: 1.2em;
   font-weight: bold;
   text-align: center;
+}
+
+.icon {
+  height: 80px;
+  display: block;
+  margin-bottom: 10px;
+  justify-content: center;
+  align-items: center;
 }
 
 .landing-reviews {
