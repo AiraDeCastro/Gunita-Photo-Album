@@ -11,7 +11,7 @@ body {
   flex-direction: column;
   min-height: 100vh;
   font-family: "Jost", sans-serif;
-  background-color: #f5efe6;
+  background-color: #fff;
 }
 
 /* Navigation Bar */
@@ -97,7 +97,8 @@ h1 {
 .landing-description {
   text-align: center;
   padding: 50px;
-  height: 300px;
+  height: 150px;
+  background-color: #F5EFE6;
 }
 
 .landing-description h2 {
@@ -110,7 +111,7 @@ h1 {
   text-align: center;
   padding: 20px;
   height: 350px;
-  background-color: white;
+  background-color: #F5EFE6;
 }
 
 /* Heading Styling */
@@ -133,7 +134,7 @@ h1 {
   flex: 1;
   min-width: 150px;
   height: 200px;
-  background-color: #4f6f52;
+  background-color: #80AF81;
   display: flex;
   justify-content: center;
   align-items: center;
@@ -152,35 +153,43 @@ h1 {
 .landing-reviews {
   text-align: center;
   padding: 50px;
-  height: 300px;
-  background-color: beige;
+  height: 200px;
+}
+
+.review {
+  padding: 5px;
 }
 
 .landing-questions {
   text-align: center;
   padding: 50px;
-  height: 500px;
+  height: 400px;
   background-color: black;
   color: white;
   border-radius: 30px;
   margin: 10px;
 }
 
+.landing-questions h2 {
+  padding: 25px;
+}
+
+.landing-questions p {
+  padding: 10px;
+}
+
 .landing-contactus {
   text-align: center;
-  padding: 50px;
-  height: 300px;
-  background-color: beige;
+  padding-top: 70px;
+  height: 50px;
 }
 
 .socialmedia {
   text-align: center;
   justify-content: center;
   align-items: center;
-  padding: 50px;
-  height: 100px;
-  background-color: black;
-  color: white;
+  padding: 70px;
+  height: 50px;
   display: flex;
   gap: 80px;
 }
