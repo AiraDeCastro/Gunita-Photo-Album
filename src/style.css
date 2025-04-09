@@ -242,9 +242,16 @@ h1 {
 
 /* About Section */
 .about-section {
-  margin: 30px;
+  margin: auto;
   padding-top: 20px;
-  background-color: blue;
+  padding: 20px;
+  background-color: antiquewhite;
+  text-align: center;
+}
+
+.about-section img {
+  width: 75%;
+  padding-bottom: 15px;
 }
 
 .about-title {
@@ -256,11 +263,6 @@ h1 {
 .about-info {
   margin: 30px;
   text-align: center;
-}
-
-.about-photo-right {
-  height: 100px;
-  width: 100px;
 }
 
 /* Responsive Image Gallery */
