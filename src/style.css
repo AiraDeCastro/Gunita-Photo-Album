@@ -250,7 +250,7 @@ h1 {
 }
 
 .about-section img {
-  width: 75%;
+  width: 60%;
   padding-bottom: 15px;
 }
 
@@ -263,6 +263,11 @@ h1 {
 .about-info {
   margin: 30px;
   text-align: center;
+}
+
+section p {
+  padding: 10px;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif
 }
 
 /* Responsive Image Gallery */
