@@ -19,16 +19,24 @@
             </ul>
         </nav>
         <main>
-            <div>
-                <h1>Hello, I am Aira!</h1>
-                <p>I </p>
-                <p></p>
-            </div>
-            <div>
-                <h2>About Aira De Castro</h2>
-                <p></p>
-                <img>
-            </div>
+            <div class="container">
+                <h1>Contact Us</h1>
+                <form id="contactForm">
+                    <label for="name">Name:</label>
+                    <input type="text" id="name" name="name" required />
+            
+                    <label for="email">Email:</label>
+                    <input type="email" id="email" name="email" required />
+            
+                    <label for="message">Message:</label>
+                    <textarea id="message" name="message" required></textarea>
+            
+                    <button type="submit">Send Message</button>
+                </form>
+                <p id="statusMessage"></p>
+            </div>              
+            
+                <script src="script.js"></script>
             <div class="socialmedia">
                 <a href="https://www.facebook.com/airanicole.decastro/"><img src="../icons/facebook_icon.png" alt="Facebook"></a>
                 <a href="https://www.instagram.com/just.airughhh/"><img src="../icons/instagram_icon.png" alt="Instagram"></a>
