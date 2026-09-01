@@ -1,10 +1,17 @@
 import Navbar from "@/components/Navbar";
+import { createClient } from "@/lib/supabase/server";
+import { signOut } from "@/lib/auth/actions";
 
 const usedGb = 6.4;
 const totalGb = 15;
 const usedPct = Math.round((usedGb / totalGb) * 100);
 
-export default function AccountPage() {
+export default async function AccountPage() {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
   return (
     <div className="flex-1">
       <Navbar />
@@ -37,7 +44,8 @@ export default function AccountPage() {
             Email
             <input
               type="email"
-              defaultValue="you@example.com"
+              readOnly
+              defaultValue={user?.email ?? ""}
               className="rounded-md border border-border bg-surface px-3 py-2 text-text outline-none focus:border-accent"
             />
           </label>
@@ -46,9 +54,14 @@ export default function AccountPage() {
           </button>
         </section>
 
-        <button className="rounded-md border border-border px-4 py-2 text-sm text-text hover:bg-surface-sunken transition-colors">
-          Sign out
-        </button>
+        <form action={signOut}>
+          <button
+            type="submit"
+            className="rounded-md border border-border px-4 py-2 text-sm text-text hover:bg-surface-sunken transition-colors"
+          >
+            Sign out
+          </button>
+        </form>
       </div>
     </div>
   );

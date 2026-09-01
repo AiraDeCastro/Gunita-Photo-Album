@@ -11,6 +11,7 @@
   --accent: #7a3b3b;
   --accent-ink: #ffffff;
   --accent-soft: #efe0dc;
+  --danger: #b3261e;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -25,6 +26,7 @@
     --accent: #d08a7d;
     --accent-ink: #1c1712;
     --accent-soft: #362621;
+    --danger: #e5726b;
   }
 }
 
@@ -39,6 +41,7 @@
   --color-accent: var(--accent);
   --color-accent-ink: var(--accent-ink);
   --color-accent-soft: var(--accent-soft);
+  --color-danger: var(--danger);
   --font-display: var(--font-fraunces);
   --font-body: var(--font-work-sans);
   --font-mono: var(--font-plex-mono);

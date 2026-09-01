@@ -1,10 +1,26 @@
 "use client";
 
-import { useState } from "react";
+import { useActionState, useState } from "react";
 import Link from "next/link";
+import { signIn, signUp, type AuthState } from "@/lib/auth/actions";
+
+const initialState: AuthState = { error: null };
 
 export default function SignInPage() {
   const [mode, setMode] = useState<"sign-in" | "sign-up">("sign-in");
+  const [signInState, signInAction, signInPending] = useActionState(
+    signIn,
+    initialState,
+  );
+  const [signUpState, signUpAction, signUpPending] = useActionState(
+    signUp,
+    initialState,
+  );
+
+  const isSignIn = mode === "sign-in";
+  const state = isSignIn ? signInState : signUpState;
+  const pending = isSignIn ? signInPending : signUpPending;
+  const action = isSignIn ? signInAction : signUpAction;
 
   return (
     <div className="flex-1 flex items-center justify-center px-6 py-16">
@@ -33,11 +49,12 @@ export default function SignInPage() {
           </button>
         </div>
 
-        <form className="mt-6 flex flex-col gap-4">
+        <form key={mode} action={action} className="mt-6 flex flex-col gap-4">
           <label className="flex flex-col gap-1.5 text-sm text-text-muted">
             Email
             <input
               type="email"
+              name="email"
               required
               className="rounded-md border border-border bg-surface px-3 py-2 text-text outline-none focus:border-accent"
               placeholder="you@example.com"
@@ -47,22 +64,35 @@ export default function SignInPage() {
             Password
             <input
               type="password"
+              name="password"
               required
               minLength={8}
               className="rounded-md border border-border bg-surface px-3 py-2 text-text outline-none focus:border-accent"
               placeholder="At least 8 characters"
             />
           </label>
-          {mode === "sign-in" && (
+          {isSignIn && (
             <Link href="/" className="text-xs text-accent hover:underline self-end">
               Forgot password?
             </Link>
           )}
+          {state.error && (
+            <p className="text-sm text-danger" role="alert">
+              {state.error}
+            </p>
+          )}
           <button
             type="submit"
-            className="mt-2 rounded-md bg-accent px-4 py-2.5 text-sm font-medium text-accent-ink hover:opacity-90 transition-opacity"
+            disabled={pending}
+            className="mt-2 rounded-md bg-accent px-4 py-2.5 text-sm font-medium text-accent-ink hover:opacity-90 transition-opacity disabled:opacity-60"
           >
-            {mode === "sign-in" ? "Sign in" : "Create account"}
+            {pending
+              ? isSignIn
+                ? "Signing in…"
+                : "Creating account…"
+              : isSignIn
+                ? "Sign in"
+                : "Create account"}
           </button>
         </form>
       </div>
