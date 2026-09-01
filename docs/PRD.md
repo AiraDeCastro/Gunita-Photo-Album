@@ -1,4 +1,4 @@
-# Gunita — Product Requirements Document (v1.1)
+# Gunita — Product Requirements Document (v1.2)
 
 *Gunita* — Tagalog for memory. A private photo & video album app with a
 cinematic, browse-first home screen inspired by Netflix.
@@ -42,6 +42,11 @@ Every album is **Private** (visible only to its creator) or **Shared**
 shared by inviting someone. Only the owner can delete the album itself; any
 member with edit rights can rename it or manage its media.
 
+Invites are limited to **existing Gunita accounts**, added by their account
+email — there is no invite-link flow and no way to invite someone who
+doesn't have an account yet. If that's a common case in practice, the
+person is invited to sign up first, then added.
+
 ## 4. Roles & permissions
 
 | Capability                       | Owner | Admin | Editor | Viewer |
@@ -53,7 +58,9 @@ member with edit rights can rename it or manage its media.
 | Remove a member                   | ✓     | ✓*    | —      | —      |
 | Delete the album                  | ✓     | —     | —      | —      |
 
-\* an admin cannot remove the owner.
+\* an admin cannot remove the owner. This holds even in edge cases — an
+inactive or unreachable Owner is not something an Admin can resolve inside
+the app; it always requires support intervention outside normal roles.
 
 ## 5. Upload & media
 
@@ -70,6 +77,11 @@ member with edit rights can rename it or manage its media.
 - A file counts against the account that **uploaded** it, not the album
   owner — so one popular shared album can't drain one person's quota.
 - Paid tiers (more storage, higher video ceilings) ship in v1.1.
+- Downgrading from a paid plan back to free doesn't lock uploads
+  immediately: the account gets a **30-day grace period** (matching the
+  Recently Deleted window, for consistency) to bring usage under 15 GB
+  before new uploads are blocked. Existing media over the cap is never
+  deleted automatically.
 
 ## 7. Deletion & recovery
 
@@ -79,6 +91,10 @@ member with edit rights can rename it or manage its media.
   so it can't be used to dodge the storage cap.
 - Only the owner/admin can delete a shared album outright; any editor can
   delete individual media.
+- When a member is removed from a shared album (or leaves on their own),
+  the owner or an admin decides whether the media that member personally
+  uploaded stays in the album or is removed with them — it's their call,
+  not an automatic rule either way.
 
 ## 8. Non-functional requirements
 
@@ -100,14 +116,10 @@ member with edit rights can rename it or manage its media.
 
 ## 10. Open questions
 
-- Invites: exact account email only, or username search / invite links for
-  people without a Gunita account yet?
-- When a member is removed from (or leaves) a shared album, does media they
-  personally uploaded stay in the album or leave with them?
-- Does downgrading from a paid plan get a grace period to shed storage
-  before uploads lock, or does it lock immediately at 15 GB?
-- Can an Admin demote/remove the Owner in an emergency (e.g. an inactive
-  account), or does that always require support intervention?
+None outstanding for v1 scope — the four questions raised during drafting
+(invite mechanism, removed-member media handling, downgrade grace period,
+emergency Owner removal) are now resolved and folded into §3, §4, §6, and §7
+above. Add new ones here as they come up rather than deciding silently.
 
 ---
 *Full designed version: see the published PRD artifact linked from the
