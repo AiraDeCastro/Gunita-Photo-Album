@@ -1,27 +1,39 @@
 import Image from "next/image";
 import Link from "next/link";
-import type { Album } from "@/lib/mock-data";
+import type { AlbumSummary } from "@/lib/albums/types";
 
-export default function Hero({ album }: { album: Album }) {
+export default function Hero({ album }: { album: AlbumSummary }) {
   return (
-    <div className="relative h-[52vh] min-h-[320px] w-full">
-      <Image
-        src={album.cover}
-        alt=""
-        fill
-        priority
-        sizes="100vw"
-        className="object-cover"
+    <div className="relative h-[52vh] min-h-[320px] w-full bg-surface-sunken">
+      {album.cover && (
+        <Image
+          src={album.cover}
+          alt=""
+          fill
+          priority
+          sizes="100vw"
+          className="object-cover"
+        />
+      )}
+      <div
+        className={
+          album.cover
+            ? "absolute inset-0 bg-gradient-to-t from-bg via-bg/40 to-black/20"
+            : "absolute inset-0 bg-gradient-to-t from-bg via-bg/60 to-transparent"
+        }
       />
-      <div className="absolute inset-0 bg-gradient-to-t from-bg via-bg/40 to-black/20" />
       <div className="absolute inset-x-0 bottom-0 px-6 md:px-10 pb-10 max-w-xl">
-        <p className="mb-2 font-mono text-xs uppercase tracking-wide text-white/80">
+        <p
+          className={`mb-2 font-mono text-xs uppercase tracking-wide ${album.cover ? "text-white/80" : "text-text-muted"}`}
+        >
           Recently active
         </p>
-        <h1 className="font-display text-4xl md:text-5xl font-medium text-white text-balance drop-shadow-sm">
+        <h1
+          className={`font-display text-4xl md:text-5xl font-medium text-balance drop-shadow-sm ${album.cover ? "text-white" : "text-text"}`}
+        >
           {album.title}
         </h1>
-        <p className="mt-2 text-sm text-white/80">
+        <p className={`mt-2 text-sm ${album.cover ? "text-white/80" : "text-text-muted"}`}>
           {album.itemCount} items · updated {album.updatedAt}
         </p>
         <Link

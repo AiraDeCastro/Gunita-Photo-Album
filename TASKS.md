@@ -38,18 +38,46 @@ initials instead of the old static "YOU"); sign-out → `/sign-in`; sign-in
 with correct/incorrect credentials (error renders in the new `--danger`
 token); every protected route redirects when signed out.
 
-## Milestone 3 — Albums, sharing & roles
+## Milestone 3 — Albums, sharing & roles *(done except cover images)*
 
-- [ ] Create album (title, description, private or shared)
-- [ ] List a user's albums (owned + member-of) to feed the browse rows
-- [ ] Autosave title/description edits
-- [ ] Set/replace album cover
-- [ ] Delete album → soft delete (owner-only)
-- [ ] Invite a member by account email, assign a role
-- [ ] Change a member's role (owner/admin only)
-- [ ] Remove a member (owner/admin only, admin can't remove owner)
-- [ ] Let a non-owner member leave an album
-- [ ] Enforce the full role capability matrix (PRD §4) server-side on every album/media mutation — not just hidden in the UI
+- [x] Create album (title, description, private or shared) — `createAlbum`; starts private, `inviteMember` flips it to shared (PRD §3)
+- [x] List a user's albums (owned + member-of) to feed the browse rows — `getAlbumsForCurrentUser`, wired into `src/app/page.tsx`
+- [x] Autosave title/description edits — `AlbumSettingsForm`, saves on blur
+- [ ] Set/replace album cover — blocked on Milestone 4: there's no media yet to set as a cover, nothing to build here until upload exists
+- [x] Delete album → soft delete (owner-only) — `deleteAlbum`; verified `deleted_at`/`purge_at` (+30d) set correctly, row not actually removed
+- [x] Invite a member by account email, assign a role — `inviteMember`; see note below on a real RLS bug this surfaced
+- [x] Change a member's role (owner/admin only) — `changeMemberRole`
+- [x] Remove a member (owner/admin only, admin can't remove owner) — `removeMember`
+- [x] Let a non-owner member leave an album — `leaveAlbum`
+- [x] Enforce the full role capability matrix (PRD §4) server-side on every album/media mutation — `refine_role_policies` migration (owner/admin/editor can edit, owner-only delete, owner/admin manage members, viewers read-only); not just UI hiding — RLS is the actual boundary
+
+Verified end-to-end in the browser with two real accounts (alice/bob):
+create → rename (persists after reload) → invite (private→shared badge
+flips) → role change (persists after reload) → owner-side "Remove" →
+member-side "Leave" → delete (confirmed soft, not hard, via psql). Viewer
+role correctly loses the edit form, Upload button, Delete button, and
+invite/role UI; owner keeps all of it. (Editor/admin weren't separately
+role-played through the browser — they share the same `canEdit`/`canManage`
+boolean checks already exercised by the owner/viewer extremes, not a
+distinct code path.)
+
+Two real bugs turned up and got fixed along the way, both worth knowing
+about if you touch this area again:
+- **RLS + AFTER trigger + `RETURNING` race**: `is_album_member`/`album_role`
+  were `STABLE`, which let Postgres reuse a cached result from before
+  `handle_new_album` (an AFTER INSERT trigger) had inserted the owner's own
+  membership row — so `INSERT INTO albums ... RETURNING id` failed its own
+  SELECT-policy check even though the row was valid. Fixed by marking both
+  helpers `VOLATILE` (`fix_rls_helper_volatility` migration) *and* having
+  `createAlbum` generate the id client-side to avoid `RETURNING` there
+  entirely. If a future insert-with-a-dependent-trigger needs `RETURNING`,
+  expect to hit this again.
+- **Inviting requires bypassing RLS for the lookup**: "profiles are viewable
+  by album co-members" is exactly false for someone not yet invited — a
+  chicken-and-egg problem. `inviteMember` now looks up the invitee's profile
+  via the admin (service-role) client, while the actual `album_members`
+  insert stays on the RLS-respecting client — so *who's allowed to invite*
+  is still enforced at the DB layer, only the lookup itself bypasses it.
 
 ## Milestone 4 — Upload & media pipeline
 
@@ -80,8 +108,8 @@ token); every protected route redirects when signed out.
 
 ## Milestone 7 — Browse experience, connected to real data
 
-- [ ] Replace `src/lib/mock-data.ts` calls with real queries for rows and hero
-- [ ] Hero picks the user's most-recently-active album dynamically
+- [x] Replace `src/lib/mock-data.ts` calls with real queries for rows and hero — done early, as part of Milestone 3 (`getAlbumsForCurrentUser`); `mock-data.ts` itself still exists and is used by `src/app/recently-deleted/page.tsx` until Milestone 6
+- [ ] Hero picks the user's most-recently-active album dynamically — currently just "most recently updated" (`ORDER BY updated_at DESC`), a placeholder until there's upload activity to be "active" about
 - [ ] Hover-preview interaction on album cards (image cycle or muted video preview)
 - [ ] Lightbox view for a single media item with next/previous navigation
 - [ ] Responsive pass: swipeable rows and shortened hero on mobile

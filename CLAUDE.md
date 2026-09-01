@@ -17,15 +17,17 @@ coding, and PRD.md is the source of truth if the two ever disagree.
 
 ## Current status
 
-Auth is real (Milestone 2, done) — sign-up/sign-in/sign-out all go through
-Supabase Auth, every route redirects signed-out users to `/sign-in`, and the
-Navbar/Account page show the actual signed-in user. Everything else is
-still **frontend-only against mock data**: album browsing, album detail,
-and Recently Deleted all render from
-[`src/lib/mock-data.ts`](src/lib/mock-data.ts), not the `albums`/`media`
-tables. Buttons like "Upload", "Delete album", "Manage members", and
-"Restore" render but aren't wired yet. Don't assume an album/media table
-query exists anywhere in `src/` — that's Milestones 3–7.
+Auth (Milestone 2) and albums/sharing/roles (Milestone 3) are both real now.
+Sign-up/sign-in/sign-out go through Supabase Auth; every route redirects
+signed-out users to `/sign-in`. Albums are created, renamed, deleted,
+shared, and role-managed against the real `albums`/`album_members` tables
+(`src/lib/albums/`) — RLS is the actual enforcement boundary, not just UI
+hiding. What's still not wired: **media**. There's no upload yet (Milestone
+4), so every album is permanently empty — `itemCount` is always 0, covers
+are always null (see the "No photos yet" placeholder in `AlbumCard`/`Hero`),
+and the "Upload" button renders but does nothing. Recently Deleted
+(`src/app/recently-deleted/page.tsx`) still renders from
+[`src/lib/mock-data.ts`](src/lib/mock-data.ts) — that's Milestone 6.
 
 ## Local backend (Supabase via Docker)
 
@@ -60,25 +62,45 @@ Local endpoints once `supabase start` has been run:
 
 ### Schema & client
 
-- Schema lives in `supabase/migrations/*.sql` (currently one migration,
-  `init_schema.sql`, defining `profiles`, `albums`, `album_members`,
-  `media`). To change it: add a **new** migration rather than editing an
-  applied one (`supabase migration new <name>`, run from WSL), then apply
-  with `supabase db reset` (safe pre-launch — it drops and recreates the
-  local DB from migrations, no data to lose yet).
-- RLS is enabled on all four tables, but the policies are a **baseline**
-  (coarse ownership/membership checks) — the full Owner/Admin/Editor/Viewer
-  capability matrix from `docs/PRD.md` §4 is Milestone 3 work, layered on
-  top rather than redone.
+- Schema lives in `supabase/migrations/*.sql` (`init_schema`, `profiles`/
+  `albums`/`album_members`/`media`; `refine_role_policies`, the full
+  Owner/Admin/Editor/Viewer matrix from `docs/PRD.md` §4;
+  `fix_rls_helper_volatility`, see the RLS gotcha below). To change it: add
+  a **new** migration rather than editing an applied one (`supabase
+  migration new <name>`, run from WSL), then apply with `supabase db reset`
+  (safe pre-launch — it drops and recreates the local DB from migrations,
+  no data to lose yet).
+- RLS is the real enforcement for the role matrix — not just UI
+  conditionals. `CAN_EDIT`/`CAN_MANAGE_MEMBERS` in `src/lib/albums/types.ts`
+  gate the UI to match, but the DB would reject an unauthorized mutation
+  either way.
+- **RLS gotcha, worth knowing before adding another trigger-dependent
+  policy**: `is_album_member`/`album_role` (the helper functions RLS
+  policies call) are `VOLATILE`, not `STABLE`, on purpose. `STABLE` let
+  Postgres reuse a cached result from *before* `handle_new_album` (an AFTER
+  INSERT trigger) had run, so `INSERT INTO albums ... RETURNING id` failed
+  its own SELECT-policy check even though the row was valid — reproduced
+  directly against Postgres, see `fix_rls_helper_volatility` and
+  `src/lib/albums/actions.ts`'s `createAlbum` (which also sidesteps it by
+  generating the id client-side instead of relying on `RETURNING`). If a
+  new insert needs `RETURNING` and depends on a same-statement trigger
+  side-effect for its SELECT policy, expect to hit this again.
+- Looking up another user by email (for invites) has to go through
+  `admin.ts`, not `server.ts` — "profiles are viewable by album co-members"
+  is exactly false for someone not yet invited. See `inviteMember` in
+  `src/lib/albums/actions.ts`.
 - After any schema change, regenerate types: `supabase gen types
   typescript --local > src/lib/supabase/types.ts` (run from WSL).
 - App-side clients are in `src/lib/supabase/`: `client.ts` (browser),
   `server.ts` (Server Components/Actions — respects RLS as the signed-in
   user), `admin.ts` (secret-key client that **bypasses RLS** — server-only,
-  reserved for things RLS can't express like the purge job), and
-  `middleware.ts` (session-cookie refresh, wired up via `src/proxy.ts` —
-  Next.js 16 renamed the `middleware.ts` convention to `proxy.ts`; don't
-  reintroduce a root `middleware.ts`).
+  reserved for things RLS can't express, like the invite-lookup above or
+  the future purge job), and `middleware.ts` (session-cookie refresh, wired
+  up via `src/proxy.ts` — Next.js 16 renamed the `middleware.ts` convention
+  to `proxy.ts`; don't reintroduce a root `middleware.ts`).
+- Album/media server actions live in `src/lib/albums/` (`queries.ts` for
+  reads, `actions.ts` for mutations, `types.ts` for the shared shapes) —
+  follow this split for future domains rather than inventing a new pattern.
 
 When implementing real functionality, treat the PRD's phasing as the guide
 for what belongs in this pass vs. later:

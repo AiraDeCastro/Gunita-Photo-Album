@@ -1,7 +1,13 @@
 import AlbumCard from "./AlbumCard";
-import type { Album } from "@/lib/mock-data";
+import type { AlbumSummary } from "@/lib/albums/types";
 
-export default function AlbumRow({ label, albums }: { label: string; albums: Album[] }) {
+export default function AlbumRow({
+  label,
+  albums,
+}: {
+  label: string;
+  albums: AlbumSummary[];
+}) {
   if (albums.length === 0) return null;
 
   return (
