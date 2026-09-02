@@ -112,18 +112,28 @@ with the limit message and left the `media` table's row count/byte total
 unchanged, then confirmed a normal upload still succeeds once the real
 15 GB constant was restored.
 
-## Milestone 6 — Deletion & recovery
+## Milestone 6 — Deletion & recovery *(done)*
 
-- [ ] Soft-delete model: `deleted_at` / `purge_at` (= +30 days) on albums and media
-- [ ] Recently Deleted page: real list, days-remaining, restore action
-- [ ] Restore a single photo/video back to its album
-- [ ] Restore an album with its remaining media and membership intact
-- [ ] Scheduled job (Vercel Cron, per `PLANNING.md`) to hard-purge items past `purge_at` and free the underlying storage objects
-- [ ] Confirm storage accounting still counts soft-deleted items until purge
+- [x] Soft-delete model: `deleted_at` / `purge_at` (= +30 days) on albums and media — already existed since Milestones 3–4
+- [x] Recently Deleted page: real list, days-remaining, restore action — `src/app/recently-deleted/page.tsx`, merging `getDeletedAlbums`/`getDeletedMedia`; `mock-data.ts` is gone, nothing references it anymore
+- [x] Restore a single photo/video back to its album — `restoreMedia`, same owner/admin/editor role check as delete (no new RLS needed — the existing "edit media" policy has no `WITH CHECK` restricting `deleted_at`)
+- [x] Restore an album with its remaining media and membership intact — `restoreAlbum`, owner-only; membership/media were never touched by the soft-delete in the first place, so restoring is just clearing two columns
+- [x] Scheduled job to hard-purge items past `purge_at` and free the underlying storage objects — `src/app/api/cron/purge/route.ts` (admin client, bypasses RLS on purpose — this has to act across every account), wired to Vercel Cron via `vercel.json` (daily); `CRON_SECRET` gates it when set, unset locally so it can be called directly for testing
+- [x] Confirm storage accounting still counts soft-deleted items until purge — unchanged from Milestone 5, still true (`getStorageUsageBytes` has no `deleted_at` filter)
+
+Verified live end-to-end, not just build/lint: deleted then restored a
+photo (reappeared with its real thumbnail intact) and an album (reappeared
+with all 6 items and owner membership intact); backdated a media row's and
+then an album's `purge_at` into the past via psql and called the purge
+endpoint directly — confirmed the media purge removed exactly the DB row
+and its storage object, and the album purge cascaded through
+`album_members` and `media` (FK) while the route explicitly cleaned up all
+8 of that album's storage objects first. Also confirmed the `CRON_SECRET`
+auth gate: 401 with no header or the wrong value, 200 with the right one.
 
 ## Milestone 7 — Browse experience, connected to real data
 
-- [x] Replace `src/lib/mock-data.ts` calls with real queries for rows and hero — done early, as part of Milestone 3 (`getAlbumsForCurrentUser`); `mock-data.ts` itself still exists and is used by `src/app/recently-deleted/page.tsx` until Milestone 6
+- [x] Replace `src/lib/mock-data.ts` calls with real queries for rows and hero — done early, as part of Milestone 3 (`getAlbumsForCurrentUser`); `mock-data.ts` itself is gone as of Milestone 6, once Recently Deleted (its last caller) moved to real data too
 - [ ] Hero picks the user's most-recently-active album dynamically — currently just "most recently updated" (`ORDER BY updated_at DESC`), a placeholder until there's upload activity to be "active" about
 - [ ] Hover-preview interaction on album cards (image cycle or muted video preview)
 - [ ] Lightbox view for a single media item with next/previous navigation

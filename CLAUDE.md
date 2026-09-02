@@ -18,7 +18,8 @@ coding, and PRD.md is the source of truth if the two ever disagree.
 ## Current status
 
 Auth (Milestone 2), albums/sharing/roles (Milestone 3), upload/media
-(Milestone 4), and storage accounting (Milestone 5) are all real now.
+(Milestone 4), storage accounting (Milestone 5), and deletion/recovery
+(Milestone 6) are all real now — that's every Milestone 0–6 item done.
 Sign-up/sign-in/sign-out go through Supabase Auth; every route redirects
 signed-out users to `/sign-in`. Albums are created, renamed, deleted,
 shared, and role-managed against the real `albums`/`album_members` tables
@@ -27,11 +28,14 @@ hiding. Photos and videos upload for real to Supabase Storage
 (`src/lib/media/`, `src/lib/storage/`), with client-side thumbnails,
 per-file progress, soft-delete, and a real 15 GB/account cap enforced at
 upload time (`src/lib/storage/quota.ts`) — the Account page's usage bar is
-live, not the old hardcoded 6.4/15 GB. What's still not wired: Recently
-Deleted (`src/app/recently-deleted/page.tsx` still renders from
-[`src/lib/mock-data.ts`](src/lib/mock-data.ts) — Milestone 6; soft-deleted
-albums/media exist in the DB already — and still count against the 15 GB
-cap, per docs/PRD.md §7 — just no UI to list/restore them yet).
+live. Deleted albums/media show up for real in `/recently-deleted`, are
+restorable within 30 days, and a purge job hard-deletes anything past that
+— see "Deletion & recovery" below. `src/lib/mock-data.ts` is gone; nothing
+in `src/` reads from it anymore.
+
+What's next is Milestone 7 (browse experience polish — hover-preview,
+lightbox, a real "recently active" hero) and Milestone 8 (non-functional
+hardening) before v1 launch prep.
 
 ## Local backend (Supabase via Docker)
 
@@ -135,7 +139,7 @@ Local endpoints once `supabase start` has been run:
   bytes), matching how storage limits are conventionally advertised —
   not binary GiB. `getStorageUsageBytes` sums every `media` row for an
   uploader with no `deleted_at` filter on purpose: soft-deleted media
-  still counts against the cap until Milestone 6's purge job removes it
+  still counts against the cap until the purge job (below) removes it
   for real (docs/PRD.md §7).
 - **Two real bugs hit while building this, both worth knowing before
   touching upload/media code again:**
@@ -153,6 +157,35 @@ Local endpoints once `supabase start` has been run:
     auth failure, not an HTML redirect to `/sign-in`. If a new route
     handler needs middleware-driven auth redirects, it needs a different
     mechanism than the shared proxy matcher.
+
+### Deletion & recovery
+
+- Restore permissions deliberately **mirror delete permissions** rather
+  than tracking who deleted what: album restore is owner-only (same RLS
+  policy that allows delete — `owner can delete or restore the album`
+  already had no `WITH CHECK` distinguishing the two), and media restore
+  uses the same owner/admin/editor check as media delete/edit. There's no
+  `deleted_by` column — restoring isn't scoped to "the person who deleted
+  it," it's scoped to "anyone who could delete it in the first place."
+- `/recently-deleted` (`src/app/recently-deleted/page.tsx`) is a
+  **personal** view, not album-wide: it lists albums the user *owns* and
+  media the user *uploaded*, mirroring how the storage-quota page is also
+  uploader-scoped. An editor could restore a co-editor's deletion via RLS,
+  but won't see it listed on their own Recently Deleted page.
+- The hard-purge job (`src/app/api/cron/purge/route.ts`) uses
+  `src/lib/supabase/admin.ts` on purpose — it has to act across every
+  account's `purge_at`-expired rows, which is exactly what RLS is supposed
+  to block for a normal request. It deletes Storage objects **before**
+  the DB rows: for an expired album, that means fetching every remaining
+  media row's paths (not just already-soft-deleted ones — the whole album
+  is going) and removing them from Storage first, since deleting the
+  `albums` row only cascades the `album_members`/`media` DB rows via FK,
+  not the actual Storage objects.
+- Wired to run via Vercel Cron (`vercel.json`, daily). `CRON_SECRET` gates
+  the route when set; it's intentionally unset in `.env.local` so it can
+  be called directly (`GET /api/cron/purge`, no header needed) for local
+  testing — but it's a hard requirement in production, or the endpoint has
+  no auth at all.
 
 When implementing real functionality, treat the PRD's phasing as the guide
 for what belongs in this pass vs. later:
