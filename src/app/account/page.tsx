@@ -1,16 +1,16 @@
 import Navbar from "@/components/Navbar";
 import { createClient } from "@/lib/supabase/server";
 import { signOut } from "@/lib/auth/actions";
-
-const usedGb = 6.4;
-const totalGb = 15;
-const usedPct = Math.round((usedGb / totalGb) * 100);
+import { FREE_TIER_BYTES, formatBytes, getStorageUsageBytes } from "@/lib/storage/quota";
 
 export default async function AccountPage() {
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
+
+  const usedBytes = user ? await getStorageUsageBytes(user.id) : 0;
+  const usedPct = Math.min(100, Math.round((usedBytes / FREE_TIER_BYTES) * 100));
 
   return (
     <div className="flex-1">
@@ -29,7 +29,7 @@ export default async function AccountPage() {
             />
           </div>
           <p className="mt-2 text-sm text-text-muted">
-            {usedGb} GB of {totalGb} GB used · Free plan
+            {formatBytes(usedBytes)} of {formatBytes(FREE_TIER_BYTES)} used · Free plan
           </p>
           <button className="mt-3 rounded-md border border-accent px-4 py-2 text-sm text-accent hover:bg-accent-soft transition-colors">
             Upgrade plan

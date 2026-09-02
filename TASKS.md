@@ -99,12 +99,18 @@ upload over that size — fixed by excluding `/api/*` from the proxy
 matcher, which is also just the correct design (an API route should
 answer 401 JSON, not redirect to `/sign-in`).
 
-## Milestone 5 — Storage accounting
+## Milestone 5 — Storage accounting *(done)*
 
-- [ ] Record byte size per media row, attributed to the uploader's account
-- [ ] Compute an account's total usage (sum query or maintained counter)
-- [ ] Block uploads past 15 GB with a clear message and no effect on existing media
-- [ ] Replace the static usage bar on the Account page with live data
+- [x] Record byte size per media row, attributed to the uploader's account — already landed in Milestone 4 (`media.bytes` + `media.uploader_id`, set at upload time)
+- [x] Compute an account's total usage — `getStorageUsageBytes` in `src/lib/storage/quota.ts`, a plain sum over the uploader's `media` rows (deliberately includes soft-deleted ones — they still count until Milestone 6 actually purges them)
+- [x] Block uploads past 15 GB with a clear message and no effect on existing media — checked in the upload route right after format/size validation, before anything touches Storage or the DB
+- [x] Replace the static usage bar on the Account page with live data — `src/app/account/page.tsx`
+
+Verified live: temporarily lowered `FREE_TIER_BYTES` to below the test
+account's actual usage, confirmed the upload route rejected a new file
+with the limit message and left the `media` table's row count/byte total
+unchanged, then confirmed a normal upload still succeeds once the real
+15 GB constant was restored.
 
 ## Milestone 6 — Deletion & recovery
 

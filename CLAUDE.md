@@ -17,19 +17,21 @@ coding, and PRD.md is the source of truth if the two ever disagree.
 
 ## Current status
 
-Auth (Milestone 2), albums/sharing/roles (Milestone 3), and upload/media
-(Milestone 4) are all real now. Sign-up/sign-in/sign-out go through
-Supabase Auth; every route redirects signed-out users to `/sign-in`.
-Albums are created, renamed, deleted, shared, and role-managed against the
-real `albums`/`album_members` tables (`src/lib/albums/`) — RLS is the
-actual enforcement boundary, not just UI hiding. Photos and videos upload
-for real to Supabase Storage (`src/lib/media/`, `src/lib/storage/`),
-with client-side thumbnails, per-file progress, and soft-delete. What's
-still not wired: storage-quota enforcement (Milestone 5 — uploads aren't
-blocked at 15 GB yet) and Recently Deleted
-(`src/app/recently-deleted/page.tsx` still renders from
+Auth (Milestone 2), albums/sharing/roles (Milestone 3), upload/media
+(Milestone 4), and storage accounting (Milestone 5) are all real now.
+Sign-up/sign-in/sign-out go through Supabase Auth; every route redirects
+signed-out users to `/sign-in`. Albums are created, renamed, deleted,
+shared, and role-managed against the real `albums`/`album_members` tables
+(`src/lib/albums/`) — RLS is the actual enforcement boundary, not just UI
+hiding. Photos and videos upload for real to Supabase Storage
+(`src/lib/media/`, `src/lib/storage/`), with client-side thumbnails,
+per-file progress, soft-delete, and a real 15 GB/account cap enforced at
+upload time (`src/lib/storage/quota.ts`) — the Account page's usage bar is
+live, not the old hardcoded 6.4/15 GB. What's still not wired: Recently
+Deleted (`src/app/recently-deleted/page.tsx` still renders from
 [`src/lib/mock-data.ts`](src/lib/mock-data.ts) — Milestone 6; soft-deleted
-albums/media exist in the DB already, just no UI to list/restore them).
+albums/media exist in the DB already — and still count against the 15 GB
+cap, per docs/PRD.md §7 — just no UI to list/restore them yet).
 
 ## Local backend (Supabase via Docker)
 
@@ -129,6 +131,12 @@ Local endpoints once `supabase start` has been run:
 - The upload endpoint (`src/app/api/media/upload/route.ts`) is a **Route
   Handler**, not a Server Action — Server Actions default to a ~1MB body
   limit, which a video cap of 1 GB blows through immediately.
+- Storage quota (`src/lib/storage/quota.ts`) uses **decimal GB** (10^9
+  bytes), matching how storage limits are conventionally advertised —
+  not binary GiB. `getStorageUsageBytes` sums every `media` row for an
+  uploader with no `deleted_at` filter on purpose: soft-deleted media
+  still counts against the cap until Milestone 6's purge job removes it
+  for real (docs/PRD.md §7).
 - **Two real bugs hit while building this, both worth knowing before
   touching upload/media code again:**
   - Next's Image Optimizer refuses to fetch from private-IP hosts by
