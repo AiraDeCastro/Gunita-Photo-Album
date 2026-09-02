@@ -192,3 +192,17 @@ export async function leaveAlbum(albumId: string) {
   revalidatePath("/");
   redirect("/");
 }
+
+/** Owner-only, per the "owner can delete or restore the album" RLS policy. */
+export async function restoreAlbum(albumId: string) {
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("albums")
+    .update({ deleted_at: null, purge_at: null })
+    .eq("id", albumId);
+
+  if (error) throw new Error(error.message);
+
+  revalidatePath("/recently-deleted");
+  revalidatePath("/");
+}

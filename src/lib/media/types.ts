@@ -9,3 +9,12 @@ export type MediaItem = {
   bytes: number;
   createdAt: string;
 };
+
+export type DeletedMediaItem = {
+  id: string;
+  albumId: string;
+  albumTitle: string;
+  kind: "photo" | "video";
+  daysLeft: number;
+  deletedAt: string;
+};

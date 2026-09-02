@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { getSignedMediaUrl, getSignedMediaUrls } from "@/lib/storage/media";
-import type { AlbumDetail, AlbumSummary, Role } from "./types";
+import { daysUntil } from "@/lib/dates";
+import type { AlbumDetail, AlbumSummary, DeletedAlbum, Role } from "./types";
 
 /**
  * Non-deleted media count per album, for the given album ids. A separate
@@ -133,4 +134,34 @@ export async function getAlbumDetail(id: string): Promise<AlbumDetail | null> {
     updatedAt: data.updated_at.slice(0, 10),
     members,
   };
+}
+
+/**
+ * Albums the current user deleted and can still restore. Scoped to
+ * owner_id, not a general membership check — only the owner can delete
+ * (or restore) an album (docs/PRD.md §4/§7), so this is exactly the set
+ * they're able to act on.
+ */
+export async function getDeletedAlbums(): Promise<DeletedAlbum[]> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return [];
+
+  const { data, error } = await supabase
+    .from("albums")
+    .select("id, title, deleted_at, purge_at")
+    .eq("owner_id", user.id)
+    .not("deleted_at", "is", null)
+    .order("deleted_at", { ascending: false });
+
+  if (error) throw error;
+
+  return (data ?? []).map((row) => ({
+    id: row.id,
+    title: row.title,
+    daysLeft: daysUntil(row.purge_at!),
+    deletedAt: row.deleted_at!,
+  }));
 }

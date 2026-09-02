@@ -21,5 +21,12 @@ export type AlbumDetail = AlbumSummary & {
   members: AlbumMember[];
 };
 
+export type DeletedAlbum = {
+  id: string;
+  title: string;
+  daysLeft: number;
+  deletedAt: string;
+};
+
 export const CAN_EDIT: Role[] = ["owner", "admin", "editor"];
 export const CAN_MANAGE_MEMBERS: Role[] = ["owner", "admin"];

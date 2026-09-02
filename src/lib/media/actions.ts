@@ -28,3 +28,19 @@ export async function deleteMedia(albumId: string, mediaId: string) {
   revalidatePath(`/album/${albumId}`);
   revalidatePath("/");
 }
+
+/** Same role check as delete — owner/admin/editor, via the "edit media" RLS policy. */
+export async function restoreMedia(albumId: string, mediaId: string) {
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("media")
+    .update({ deleted_at: null, purge_at: null })
+    .eq("id", mediaId)
+    .eq("album_id", albumId);
+
+  if (error) throw new Error(error.message);
+
+  revalidatePath("/recently-deleted");
+  revalidatePath(`/album/${albumId}`);
+  revalidatePath("/");
+}
