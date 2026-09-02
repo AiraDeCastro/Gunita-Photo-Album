@@ -135,9 +135,9 @@ export type Database = {
           id: string
           kind: Database["public"]["Enums"]["media_kind"]
           purge_at: string | null
-          thumbnail_url: string | null
+          storage_path: string
+          thumbnail_storage_path: string | null
           uploader_id: string
-          url: string
           width: number | null
         }
         Insert: {
@@ -150,9 +150,9 @@ export type Database = {
           id?: string
           kind: Database["public"]["Enums"]["media_kind"]
           purge_at?: string | null
-          thumbnail_url?: string | null
+          storage_path: string
+          thumbnail_storage_path?: string | null
           uploader_id: string
-          url: string
           width?: number | null
         }
         Update: {
@@ -165,9 +165,9 @@ export type Database = {
           id?: string
           kind?: Database["public"]["Enums"]["media_kind"]
           purge_at?: string | null
-          thumbnail_url?: string | null
+          storage_path?: string
+          thumbnail_storage_path?: string | null
           uploader_id?: string
-          url?: string
           width?: number | null
         }
         Relationships: [

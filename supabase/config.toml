@@ -113,15 +113,23 @@ port = 54324
 
 [storage]
 enabled = true
-# The maximum file size allowed (e.g. "5MB", "500KB").
-file_size_limit = "50MiB"
+# Ceiling across all buckets — bumped from the 50MiB default to allow the
+# 1GB video cap from docs/PRD.md §5. Photos are further restricted to 25MB
+# at the application layer (Storage buckets can't enforce a per-mime-type
+# limit within one bucket).
+file_size_limit = "1GB"
 
-# Uncomment to configure local storage buckets
-# [storage.buckets.images]
-# public = false
-# file_size_limit = "50MiB"
-# allowed_mime_types = ["image/png", "image/jpeg"]
-# objects_path = "./images"
+# The "media" bucket backs all album photo/video uploads (Milestone 4).
+# Private (not public): access goes through RLS policies on
+# storage.objects, keyed off the album_id encoded as the first path
+# segment — see the add_media_storage migration.
+[storage.buckets.media]
+public = false
+file_size_limit = "1GB"
+allowed_mime_types = [
+  "image/jpeg", "image/png", "image/heic", "image/heif", "image/webp",
+  "video/mp4", "video/quicktime", "video/webm",
+]
 
 # Allow connections via S3 compatible clients
 [storage.s3_protocol]
