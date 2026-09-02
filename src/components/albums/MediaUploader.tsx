@@ -12,6 +12,7 @@ import {
   validateVideoMetadata,
 } from "@/lib/media/constraints";
 import { readPhotoMetadata, readVideoMetadata } from "@/lib/media/client-thumbnails";
+import Lightbox from "./Lightbox";
 
 const ACCEPT = [...PHOTO_MIME_TYPES, ...VIDEO_MIME_TYPES].join(",");
 
@@ -59,6 +60,7 @@ export default function MediaUploader({
 }) {
   const [tasks, setTasks] = useState<UploadTask[]>([]);
   const [dragging, setDragging] = useState(false);
+  const [openIndex, setOpenIndex] = useState<number | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
 
@@ -195,12 +197,13 @@ export default function MediaUploader({
           </div>
         ) : (
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
-            {media.map((item) => (
+            {media.map((item, i) => (
               <MediaTile
                 key={item.id}
                 item={item}
                 albumId={albumId}
                 canDelete={canUpload}
+                onOpen={() => setOpenIndex(i)}
               />
             ))}
             {tasks.map((task) => (
@@ -209,6 +212,15 @@ export default function MediaUploader({
           </div>
         )}
       </div>
+
+      {openIndex !== null && (
+        <Lightbox
+          media={media}
+          index={openIndex}
+          onClose={() => setOpenIndex(null)}
+          onNavigate={setOpenIndex}
+        />
+      )}
     </section>
   );
 }
@@ -217,40 +229,49 @@ function MediaTile({
   item,
   albumId,
   canDelete,
+  onOpen,
 }: {
   item: MediaItem;
   albumId: string;
   canDelete: boolean;
+  onOpen: () => void;
 }) {
   const [confirming, setConfirming] = useState(false);
   const [pending, startTransition] = useTransition();
 
   return (
     <div className="group relative aspect-square overflow-hidden rounded-md bg-surface-sunken">
-      {item.thumbnailUrl ? (
-        <Image
-          src={item.thumbnailUrl}
-          alt=""
-          fill
-          sizes="200px"
-          className="object-cover"
-        />
-      ) : (
-        <div className="flex h-full w-full items-center justify-center">
-          <span className="font-mono text-[10px] uppercase tracking-wide text-text-faint">
-            {item.kind}
-          </span>
-        </div>
-      )}
+      <button
+        type="button"
+        onClick={onOpen}
+        aria-label={`Open ${item.kind}`}
+        className="absolute inset-0 z-0 h-full w-full cursor-pointer"
+      >
+        {item.thumbnailUrl ? (
+          <Image
+            src={item.thumbnailUrl}
+            alt=""
+            fill
+            sizes="200px"
+            className="object-cover"
+          />
+        ) : (
+          <div className="flex h-full w-full items-center justify-center">
+            <span className="font-mono text-[10px] uppercase tracking-wide text-text-faint">
+              {item.kind}
+            </span>
+          </div>
+        )}
+      </button>
       {item.kind === "video" && (
         <span className="absolute bottom-2 left-2 rounded-full bg-black/50 px-2 py-0.5 text-[10px] font-mono text-white">
           {formatDuration(item.durationSeconds)}
         </span>
       )}
       {canDelete && (
-        <div className="absolute inset-0 flex items-start justify-end p-2 opacity-0 transition-opacity group-hover:opacity-100">
+        <div className="pointer-events-none absolute inset-0 flex items-start justify-end p-2 opacity-0 transition-opacity group-hover:opacity-100">
           {confirming ? (
-            <div className="flex gap-1 rounded-md bg-black/70 p-1">
+            <div className="pointer-events-auto flex gap-1 rounded-md bg-black/70 p-1">
               <button
                 type="button"
                 disabled={pending}
@@ -272,7 +293,7 @@ function MediaTile({
               type="button"
               onClick={() => setConfirming(true)}
               aria-label="Delete"
-              className="rounded-full bg-black/50 px-2 py-1 text-[10px] text-white hover:bg-black/70"
+              className="pointer-events-auto rounded-full bg-black/50 px-2 py-1 text-[10px] text-white hover:bg-black/70"
             >
               Delete
             </button>

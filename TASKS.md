@@ -131,13 +131,28 @@ and its storage object, and the album purge cascaded through
 8 of that album's storage objects first. Also confirmed the `CRON_SECRET`
 auth gate: 401 with no header or the wrong value, 200 with the right one.
 
-## Milestone 7 — Browse experience, connected to real data
+## Milestone 7 — Browse experience, connected to real data *(done)*
 
 - [x] Replace `src/lib/mock-data.ts` calls with real queries for rows and hero — done early, as part of Milestone 3 (`getAlbumsForCurrentUser`); `mock-data.ts` itself is gone as of Milestone 6, once Recently Deleted (its last caller) moved to real data too
-- [ ] Hero picks the user's most-recently-active album dynamically — currently just "most recently updated" (`ORDER BY updated_at DESC`), a placeholder until there's upload activity to be "active" about
-- [ ] Hover-preview interaction on album cards (image cycle or muted video preview)
-- [ ] Lightbox view for a single media item with next/previous navigation
-- [ ] Responsive pass: swipeable rows and shortened hero on mobile
+- [x] Hero picks the user's most-recently-active album dynamically — `getAlbumsForCurrentUser` now sorts by `max(albums.updated_at, latest non-deleted media.created_at)` instead of trusting the query's own `ORDER BY updated_at`, so a fresh upload — not just a rename — is what surfaces an album
+- [x] Hover-preview interaction on album cards (image cycle) — `AlbumCard` cycles through up to 4 recent thumbnails on hover/focus. All preview images are pre-mounted and crossfaded via opacity rather than swapping `src`, which was tried first and produced a visible blank flash every tick (each new URL is a fresh network fetch)
+- [x] Lightbox view for a single media item with next/previous navigation — `src/components/albums/Lightbox.tsx`, wired into `MediaUploader`; supports click-to-open, Prev/Next buttons, Escape/Arrow-key navigation, and click-outside-to-close
+- [x] Responsive pass: swipeable rows and shortened hero on mobile — `AlbumRow` got `snap-x snap-mandatory` (native touch scroll already worked via `overflow-x-auto`, this just makes it feel more deliberate); `Hero` height is now `38vh`/`240px` min on mobile vs. `52vh`/`320px` on `md:`
+
+One real bug found and fixed: the Lightbox's Prev/Next buttons were unclickable
+in the actual (not just narrow) case where the centered media fills most of
+the dialog width — the image container, being later in DOM order with no
+z-index set, painted over the buttons even though they visually appeared
+"on top." Fixed with explicit `z-10` on the nav buttons. Reproduced and
+confirmed via direct clicks in the browser, not just code review.
+
+Verified live: two real albums with real photos — hover-preview crossfade
+observed mid-cycle across multiple screenshots; Lightbox open/Next/Prev/
+Close/Escape all confirmed; uploading to the older-created album made it
+the hero over the newer-created one, confirming activity (not creation
+order or last edit) drives the sort; mobile viewport (375×812) checked on
+the browse home and an album detail page — nav, hero, and grid all held up
+without horizontal overflow.
 
 ## Milestone 8 — Non-functional hardening
 

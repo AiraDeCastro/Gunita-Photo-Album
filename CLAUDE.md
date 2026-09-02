@@ -18,24 +18,26 @@ coding, and PRD.md is the source of truth if the two ever disagree.
 ## Current status
 
 Auth (Milestone 2), albums/sharing/roles (Milestone 3), upload/media
-(Milestone 4), storage accounting (Milestone 5), and deletion/recovery
-(Milestone 6) are all real now — that's every Milestone 0–6 item done.
-Sign-up/sign-in/sign-out go through Supabase Auth; every route redirects
-signed-out users to `/sign-in`. Albums are created, renamed, deleted,
-shared, and role-managed against the real `albums`/`album_members` tables
-(`src/lib/albums/`) — RLS is the actual enforcement boundary, not just UI
-hiding. Photos and videos upload for real to Supabase Storage
-(`src/lib/media/`, `src/lib/storage/`), with client-side thumbnails,
-per-file progress, soft-delete, and a real 15 GB/account cap enforced at
-upload time (`src/lib/storage/quota.ts`) — the Account page's usage bar is
-live. Deleted albums/media show up for real in `/recently-deleted`, are
-restorable within 30 days, and a purge job hard-deletes anything past that
-— see "Deletion & recovery" below. `src/lib/mock-data.ts` is gone; nothing
-in `src/` reads from it anymore.
+(Milestone 4), storage accounting (Milestone 5), deletion/recovery
+(Milestone 6), and the browse experience (Milestone 7) are all real now —
+that's every Milestone 0–7 item done. Sign-up/sign-in/sign-out go through
+Supabase Auth; every route redirects signed-out users to `/sign-in`. Albums
+are created, renamed, deleted, shared, and role-managed against the real
+`albums`/`album_members` tables (`src/lib/albums/`) — RLS is the actual
+enforcement boundary, not just UI hiding. Photos and videos upload for real
+to Supabase Storage (`src/lib/media/`, `src/lib/storage/`), with
+client-side thumbnails, per-file progress, soft-delete, and a real 15
+GB/account cap enforced at upload time (`src/lib/storage/quota.ts`) — the
+Account page's usage bar is live. Deleted albums/media show up for real in
+`/recently-deleted`, are restorable within 30 days, and a purge job
+hard-deletes anything past that — see "Deletion & recovery" below. The
+browse home's hero and hover-preview cards are driven by real activity and
+real thumbnails, and every media grid opens into a real lightbox — see
+"Browse experience" below. `src/lib/mock-data.ts` is gone; nothing in
+`src/` reads from it anymore.
 
-What's next is Milestone 7 (browse experience polish — hover-preview,
-lightbox, a real "recently active" hero) and Milestone 8 (non-functional
-hardening) before v1 launch prep.
+What's next is Milestone 8 (non-functional hardening) before v1 launch
+prep.
 
 ## Local backend (Supabase via Docker)
 
@@ -186,6 +188,30 @@ Local endpoints once `supabase start` has been run:
   be called directly (`GET /api/cron/purge`, no header needed) for local
   testing — but it's a hard requirement in production, or the endpoint has
   no auth at all.
+
+### Browse experience
+
+- "Recently active" (the hero, and the default album order) is computed in
+  `getAlbumsForCurrentUser` as `max(albums.updated_at, latest non-deleted
+  media.created_at)`, not the query's own `ORDER BY updated_at` — a rename
+  shouldn't outrank an actual upload for "active." The per-album latest-
+  upload lookup and the hover-preview thumbnail lookup
+  (`getPreviewsByAlbum`, up to 4 per album) are both separate queries in
+  `src/lib/albums/queries.ts`, following the same pattern as
+  `countActiveMediaByAlbum` — plain queries reduced in JS, not embedded
+  PostgREST aggregates, given the count-with-filter bug from Milestone 3.
+- `AlbumCard`'s hover-preview cycle pre-mounts every preview thumbnail and
+  crossfades between them via opacity, rather than swapping one `<Image>`'s
+  `src`. The swap-`src` version was tried first and produced a visible
+  blank flash on every tick, since each preview URL is a distinct signed
+  URL the browser hasn't fetched yet.
+- **Lightbox z-index gotcha**: the nav buttons in
+  `src/components/albums/Lightbox.tsx` need explicit `z-10` — without it,
+  the centered media element (which comes later in DOM order) paints over
+  them wherever it's wide enough to reach the button positions, and clicks
+  land on the media container's own (no-op) click handler instead of
+  Prev/Next. Caught by actually clicking Next in the browser and watching
+  the index not change, not by code review.
 
 When implementing real functionality, treat the PRD's phasing as the guide
 for what belongs in this pass vs. later:
