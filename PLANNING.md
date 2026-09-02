@@ -65,17 +65,20 @@ checks doesn't automatically mean cross-account data exposure.
 
 ### 2.2 Core subsystems
 
-- **Auth** — email/password sign-up, sign-in, sign-out, password reset
-  (PRD §Authentication). *(Not yet implemented — UI only.)*
+- **Auth** — email/password sign-up, sign-in, sign-out via Supabase Auth.
+  *(In place — Milestone 2. Password reset is still v1.1, per PRD phasing.)*
 - **Albums & permissions** — an `albums` table plus an `album_members`
   join table carrying `(album_id, user_id, role)`. Every album/media
   operation is a single permission lookup against that join table rather
   than scattered ownership checks. Role semantics are the PRD §4 matrix,
-  not reinvented per-endpoint.
-- **Media pipeline** — upload → validate (format, size, and for video:
-  resolution/length caps from PRD §5) → store original → generate
-  thumbnail (photos) or a transcoded 1080p proxy + first-frame thumbnail
-  (video) → record the resulting URLs on the `media` row.
+  enforced by Postgres RLS, not reinvented per-endpoint. *(In place —
+  Milestone 3.)*
+- **Media pipeline** — upload → validate client-side (format, size, and
+  for video: real decoded duration/resolution against the PRD §5 caps) →
+  re-validate server-side → upload original + a client-generated
+  thumbnail to Supabase Storage → record the storage paths on the `media`
+  row. No transcoding (see §3's Supabase Storage entry): an over-limit
+  video is rejected, not downscaled. *(In place — Milestone 4.)*
 - **Storage accounting** — each `media` row's byte size is attributed to
   its *uploader*, not the album owner (PRD §6 decision). A user's used-GB
   is a sum query (or a maintained counter, if that query gets expensive),
@@ -89,20 +92,23 @@ checks doesn't automatically mean cross-account data exposure.
   Stripe is the source of truth for subscription state via webhooks, not
   something the app computes itself.
 
-### 2.3 Data model sketch
+### 2.3 Data model
+
+This was a sketch; it's now the real schema (`supabase/migrations/`,
+summarized in `CLAUDE.md`). `users` became `profiles` (Supabase Auth
+already owns credentials in `auth.users`), and `media.url`/
+`thumbnail_url` became `storage_path`/`thumbnail_storage_path` once the
+bucket turned out to be private (no public URL to store — see §2.2):
 
 ```
-users            (id, email, password_hash, plan, created_at)
+profiles         (id, email, plan, created_at)
 albums           (id, owner_id, title, description, cover_media_id,
                   type[private|shared], deleted_at, purge_at)
 album_members    (album_id, user_id, role[owner|admin|editor|viewer])
-media            (id, album_id, uploader_id, kind[photo|video], url,
-                  thumbnail_url, bytes, width, height, duration_seconds,
-                  deleted_at, purge_at)
+media            (id, album_id, uploader_id, kind[photo|video],
+                  storage_path, thumbnail_storage_path, bytes, width,
+                  height, duration_seconds, deleted_at, purge_at)
 ```
-
-This is a sketch to reason about the permission and storage logic above —
-not a migration to run as-is; refine it once an ORM/schema tool is chosen.
 
 ## 3. Technology stack
 
@@ -113,15 +119,15 @@ not a migration to run as-is; refine it once an ORM/schema tool is chosen.
 | Fonts | Fraunces / Work Sans / IBM Plex Mono via `next/font` | **In place** | Matches the PRD's own typography for continuity between doc and product. |
 | Hosting | Vercel | Recommended | Native fit for Next.js; built-in cron for the purge job; preview deploys per PR. |
 | Auth + Database | Supabase (Postgres + Auth) | **In place (local)** | One vendor for both; Postgres row-level security maps directly onto the per-album role model instead of re-implementing it in app code. Running locally via the Supabase CLI in Docker (see `CLAUDE.md`); a cloud project is only needed at deploy time. |
-| Object storage / media pipeline | Cloudinary | Recommended | Upload, CDN delivery, thumbnailing, and video transcoding (enforcing the 1080p/5-min cap) in one API, avoiding a self-hosted ffmpeg worker for v1. |
+| Object storage / media pipeline | Supabase Storage | **In place (local)** | Superseded Cloudinary (Milestone 4): already running as part of the local stack, so no new account/vendor was needed to keep moving. Trade-off: no server-side transcoding or thumbnailing — thumbnails are generated client-side (canvas) before upload, and the 1080p/5-min video caps are enforced by validating and rejecting over-limit files rather than transcoding them down. Revisit if server-side transcoding becomes worth a second vendor. |
 | Transactional email | Resend | Recommended | Album-invite emails and any custom notification email; password-reset email can instead ride on Supabase Auth's built-in flow. |
 | Billing *(v1.1)* | Stripe Billing | Recommended | Standard choice; webhook-driven plan state avoids the app tracking subscription logic itself. |
 | Background jobs | Vercel Cron → route handler | Recommended | Runs the daily Recently-Deleted purge and any storage-recount job; no separate worker infra needed at this scale. |
 
-Nothing here is locked — if you'd rather avoid a third-party media
-processor (Cloudinary) or prefer a different DB/auth vendor (e.g. Firebase,
-Neon + Auth.js), say so before this becomes the working assumption for
-implementation.
+Nothing here is locked — if you'd rather adopt Cloudinary later for real
+transcoding/thumbnailing, or prefer a different DB/auth vendor (e.g.
+Firebase, Neon + Auth.js), say so before whatever's marked "In place"
+becomes harder to unwind.
 
 ## 4. Required tools list
 
@@ -136,7 +142,6 @@ implementation.
   `.env.example` documents the shape for anyone else setting up the repo
 
 ### Needed before backend work starts
-- A **Cloudinary** account (media upload, transcoding, CDN)
 - A **Vercel** account (hosting + cron), with the GitHub repo connected
 - A **Resend** account (invite emails) — can be deferred until sharing is
   implemented

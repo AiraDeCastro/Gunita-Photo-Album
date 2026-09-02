@@ -7,6 +7,10 @@ export async function proxy(request: NextRequest) {
 
 export const config = {
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+    // Excludes /api/* too: an API route should return a 401, not a
+    // redirect to /sign-in, and letting middleware touch the body of a
+    // large upload hits Next's ~10MB middleware body-read cap. Every
+    // route under src/app/api/ does its own auth check instead.
+    "/((?!_next/static|_next/image|favicon.ico|api/|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
   ],
 };

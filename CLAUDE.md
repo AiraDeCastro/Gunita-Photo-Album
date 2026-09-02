@@ -17,17 +17,19 @@ coding, and PRD.md is the source of truth if the two ever disagree.
 
 ## Current status
 
-Auth (Milestone 2) and albums/sharing/roles (Milestone 3) are both real now.
-Sign-up/sign-in/sign-out go through Supabase Auth; every route redirects
-signed-out users to `/sign-in`. Albums are created, renamed, deleted,
-shared, and role-managed against the real `albums`/`album_members` tables
-(`src/lib/albums/`) — RLS is the actual enforcement boundary, not just UI
-hiding. What's still not wired: **media**. There's no upload yet (Milestone
-4), so every album is permanently empty — `itemCount` is always 0, covers
-are always null (see the "No photos yet" placeholder in `AlbumCard`/`Hero`),
-and the "Upload" button renders but does nothing. Recently Deleted
-(`src/app/recently-deleted/page.tsx`) still renders from
-[`src/lib/mock-data.ts`](src/lib/mock-data.ts) — that's Milestone 6.
+Auth (Milestone 2), albums/sharing/roles (Milestone 3), and upload/media
+(Milestone 4) are all real now. Sign-up/sign-in/sign-out go through
+Supabase Auth; every route redirects signed-out users to `/sign-in`.
+Albums are created, renamed, deleted, shared, and role-managed against the
+real `albums`/`album_members` tables (`src/lib/albums/`) — RLS is the
+actual enforcement boundary, not just UI hiding. Photos and videos upload
+for real to Supabase Storage (`src/lib/media/`, `src/lib/storage/`),
+with client-side thumbnails, per-file progress, and soft-delete. What's
+still not wired: storage-quota enforcement (Milestone 5 — uploads aren't
+blocked at 15 GB yet) and Recently Deleted
+(`src/app/recently-deleted/page.tsx` still renders from
+[`src/lib/mock-data.ts`](src/lib/mock-data.ts) — Milestone 6; soft-deleted
+albums/media exist in the DB already, just no UI to list/restore them).
 
 ## Local backend (Supabase via Docker)
 
@@ -101,6 +103,48 @@ Local endpoints once `supabase start` has been run:
 - Album/media server actions live in `src/lib/albums/` (`queries.ts` for
   reads, `actions.ts` for mutations, `types.ts` for the shared shapes) —
   follow this split for future domains rather than inventing a new pattern.
+
+### Media & storage
+
+- Photos/videos live in a **private** Supabase Storage bucket (`media`,
+  declared in `supabase/config.toml`), not Cloudinary — see `PLANNING.md`
+  for why that changed from the original plan. Objects are stored at
+  `{album_id}/{media_id}.{ext}`; RLS on `storage.objects`
+  (`add_media_storage` migration) reuses the same `album_role`/
+  `is_album_member` helpers as the DB tables, so there's one definition of
+  "who can see/upload/delete this album's stuff," not two.
+- The `media` table stores **paths**, not URLs (`storage_path`,
+  `thumbnail_storage_path` — renamed from `url`/`thumbnail_url` in
+  `rename_media_url_to_storage_path`, since a private bucket has no public
+  URL to store). Signed URLs are generated on demand at read time via
+  `src/lib/storage/media.ts` (`getSignedMediaUrl`/`getSignedMediaUrls`),
+  never persisted.
+- No Cloudinary/ffmpeg/sharp means no server-side transcoding or
+  thumbnailing. Thumbnails are generated **client-side** on canvas
+  (`src/lib/media/client-thumbnails.ts`) before upload — for video, this
+  means decoding real video metadata (duration/dimensions) in the browser
+  to enforce the 1080p/5-min caps, then seeking and drawing a frame. HEIC
+  can fail to canvas-draw in Chromium/Firefox; that's handled as "no
+  thumbnail," not a failed upload.
+- The upload endpoint (`src/app/api/media/upload/route.ts`) is a **Route
+  Handler**, not a Server Action — Server Actions default to a ~1MB body
+  limit, which a video cap of 1 GB blows through immediately.
+- **Two real bugs hit while building this, both worth knowing before
+  touching upload/media code again:**
+  - Next's Image Optimizer refuses to fetch from private-IP hosts by
+    default (SSRF protection) — exactly what `127.0.0.1:54321` (local
+    Supabase Storage) is. Fixed with `images.dangerouslyAllowLocalIP =
+    true` in `next.config.ts`. Harmless for a deployed Supabase project
+    (real hostname), but don't remove it while still developing locally.
+  - Next's **middleware** has a ~10MB body-read cap, and `src/proxy.ts`'s
+    matcher originally covered `/api/*` too — any upload over 10MB was
+    silently truncated, producing a confusing `TypeError: Failed to parse
+    body as FormData` / `500` instead of a clean rejection. Fixed by
+    excluding `api/` from the proxy matcher, which is also just the
+    correct design: an API route should return a 401 JSON body on an
+    auth failure, not an HTML redirect to `/sign-in`. If a new route
+    handler needs middleware-driven auth redirects, it needs a different
+    mechanism than the shared proxy matcher.
 
 When implementing real functionality, treat the PRD's phasing as the guide
 for what belongs in this pass vs. later:

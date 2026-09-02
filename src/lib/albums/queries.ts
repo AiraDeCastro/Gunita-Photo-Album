@@ -1,5 +1,35 @@
 import { createClient } from "@/lib/supabase/server";
+import { getSignedMediaUrl, getSignedMediaUrls } from "@/lib/storage/media";
 import type { AlbumDetail, AlbumSummary, Role } from "./types";
+
+/**
+ * Non-deleted media count per album, for the given album ids. A separate
+ * query rather than an embedded `media(count)` with a `media.deleted_at=
+ * is.null` filter — that combination silently ignores the filter and
+ * counts deleted rows too when run as a non-privileged (RLS-subject)
+ * user, even though the identical filter works fine against the same
+ * data with the service-role key. Reproduced directly against PostgREST;
+ * not worth chasing further when a plain count query sidesteps it.
+ */
+async function countActiveMediaByAlbum(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  albumIds: string[],
+): Promise<Map<string, number>> {
+  const counts = new Map<string, number>();
+  if (albumIds.length === 0) return counts;
+
+  const { data, error } = await supabase
+    .from("media")
+    .select("album_id")
+    .in("album_id", albumIds)
+    .is("deleted_at", null);
+
+  if (error) throw error;
+  for (const row of data ?? []) {
+    counts.set(row.album_id, (counts.get(row.album_id) ?? 0) + 1);
+  }
+  return counts;
+}
 
 /**
  * Albums the signed-in user owns or is a member of. RLS already scopes
@@ -19,9 +49,8 @@ export async function getAlbumsForCurrentUser(): Promise<AlbumSummary[]> {
     .select(
       `
       id, title, description, type, updated_at,
-      cover:media!albums_cover_media_id_fkey ( url ),
-      membership:album_members!inner ( role, user_id ),
-      media!media_album_id_fkey ( count )
+      cover:media!albums_cover_media_id_fkey ( storage_path ),
+      membership:album_members!inner ( role, user_id )
     `,
     )
     .eq("album_members.user_id", user.id)
@@ -29,14 +58,23 @@ export async function getAlbumsForCurrentUser(): Promise<AlbumSummary[]> {
     .order("updated_at", { ascending: false });
 
   if (error) throw error;
+  const rows = data ?? [];
 
-  return (data ?? []).map((row) => ({
+  const coverPaths = rows
+    .map((row) => row.cover?.storage_path)
+    .filter((path): path is string => Boolean(path));
+  const [signedUrls, itemCounts] = await Promise.all([
+    getSignedMediaUrls(coverPaths),
+    countActiveMediaByAlbum(supabase, rows.map((row) => row.id)),
+  ]);
+
+  return rows.map((row) => ({
     id: row.id,
     title: row.title,
     description: row.description,
     type: row.type,
-    cover: row.cover?.url ?? null,
-    itemCount: row.media?.[0]?.count ?? 0,
+    cover: row.cover?.storage_path ? (signedUrls.get(row.cover.storage_path) ?? null) : null,
+    itemCount: itemCounts.get(row.id) ?? 0,
     role: (row.membership[0]?.role ?? "viewer") as Role,
     updatedAt: row.updated_at.slice(0, 10),
   }));
@@ -60,8 +98,7 @@ export async function getAlbumDetail(id: string): Promise<AlbumDetail | null> {
     .select(
       `
       id, title, description, type, updated_at,
-      cover:media!albums_cover_media_id_fkey ( url ),
-      media!media_album_id_fkey ( count ),
+      cover:media!albums_cover_media_id_fkey ( storage_path ),
       album_members ( role, profiles ( id, email ) )
     `,
     )
@@ -83,13 +120,15 @@ export async function getAlbumDetail(id: string): Promise<AlbumDetail | null> {
   const mine = members.find((m) => m.userId === user.id);
   if (!mine) return null;
 
+  const itemCounts = await countActiveMediaByAlbum(supabase, [id]);
+
   return {
     id: data.id,
     title: data.title,
     description: data.description,
     type: data.type,
-    cover: data.cover?.url ?? null,
-    itemCount: data.media?.[0]?.count ?? 0,
+    cover: await getSignedMediaUrl(data.cover?.storage_path ?? null),
+    itemCount: itemCounts.get(id) ?? 0,
     role: mine.role,
     updatedAt: data.updated_at.slice(0, 10),
     members,

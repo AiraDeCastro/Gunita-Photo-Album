@@ -79,16 +79,25 @@ about if you touch this area again:
   insert stays on the RLS-respecting client — so *who's allowed to invite*
   is still enforced at the DB layer, only the lookup itself bypasses it.
 
-## Milestone 4 — Upload & media pipeline
+## Milestone 4 — Upload & media pipeline *(done)*
 
-- [ ] Wire multi-file drag-and-drop + file picker to real uploads
-- [ ] Client-side validation: accepted formats, 25 MB photo limit
-- [ ] Server-side validation mirroring the client (never trust client-side checks alone)
-- [ ] Integrate the chosen media pipeline (Cloudinary, per `PLANNING.md`) for storage + CDN delivery
-- [ ] Enforce video caps: 1080p, 5 minutes, 1 GB per file (transcode or reject over-limit uploads)
-- [ ] Generate thumbnails (photo; first-frame for video)
-- [ ] Per-file upload progress, with failed files flagged individually
-- [ ] Delete a single photo/video with confirmation → soft delete
+- [x] Wire multi-file drag-and-drop + file picker to real uploads — `MediaUploader` (hidden input + drop zone), one XHR per file
+- [x] Client-side validation: accepted formats, 25 MB photo limit — `src/lib/media/constraints.ts`, shared with the server so the two can't drift
+- [x] Server-side validation mirroring the client (never trust client-side checks alone) — `src/app/api/media/upload/route.ts`; verified by bypassing the client entirely (curl, fabricated `fetch` payloads) — wrong mime, oversized photo, and over-duration video all correctly rejected with 400s
+- [x] Integrate a media pipeline for storage + CDN delivery — **Supabase Storage**, not Cloudinary (see `PLANNING.md`): a private `media` bucket, RLS on `storage.objects` reusing the same `album_role`/`is_album_member` helpers, signed URLs generated at read time (`src/lib/storage/media.ts`)
+- [x] Enforce video caps: 1080p, 5 minutes, 1 GB per file — by **rejecting** over-limit uploads (no transcoding, consistent with the Supabase Storage decision); duration/resolution read client-side from real decoded video metadata and re-checked server-side
+- [x] Generate thumbnails (photo; first-frame for video) — client-side canvas, no ffmpeg/sharp dependency; verified end-to-end for both photo and a real recorded video (canvas → MediaRecorder → decoded → frame-captured → uploaded)
+- [x] Per-file upload progress, with failed files flagged individually — `XMLHttpRequest.upload.onprogress` per file; failed files show inline with a dismiss action, independent of other files in the same batch
+- [x] Delete a single photo/video with confirmation → soft delete — inline confirm (no `window.confirm()`), clears the album's cover if the deleted item was it
+
+Two real bugs found and fixed while testing this against the live stack
+(both worth knowing about before touching this code again — see
+`CLAUDE.md`): Next's Image Optimizer refuses private-IP hosts by default
+(blocks local Supabase Storage URLs) and, more importantly, Next's
+middleware has a ~10MB body-read cap that was silently corrupting any
+upload over that size — fixed by excluding `/api/*` from the proxy
+matcher, which is also just the correct design (an API route should
+answer 401 JSON, not redirect to `/sign-in`).
 
 ## Milestone 5 — Storage accounting
 
