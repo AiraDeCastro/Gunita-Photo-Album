@@ -1,22 +1,70 @@
+"use client";
+
 import Image from "next/image";
 import Link from "next/link";
+import { useEffect, useRef, useState } from "react";
 import type { AlbumSummary } from "@/lib/albums/types";
 
+const CYCLE_MS = 700;
+
 export default function AlbumCard({ album }: { album: AlbumSummary }) {
+  const [hovering, setHovering] = useState(false);
+  const [previewIndex, setPreviewIndex] = useState(0);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const canCycle = hovering && album.previewUrls.length > 1;
+
+  useEffect(() => {
+    if (!canCycle) return;
+    intervalRef.current = setInterval(() => {
+      setPreviewIndex((i) => (i + 1) % album.previewUrls.length);
+    }, CYCLE_MS);
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+    };
+  }, [canCycle, album.previewUrls.length]);
+
+  const baseSrc = album.cover ?? album.previewUrls[0] ?? null;
+
   return (
     <Link
       href={`/album/${album.id}`}
-      className="group relative w-44 md:w-52 shrink-0 rounded-md overflow-hidden bg-surface-sunken transition-transform duration-200 ease-out hover:scale-105 hover:z-10 focus-visible:scale-105 focus-visible:z-10 focus-visible:outline-2 focus-visible:outline-accent"
+      onMouseEnter={() => setHovering(true)}
+      onMouseLeave={() => {
+        setHovering(false);
+        setPreviewIndex(0);
+      }}
+      onFocus={() => setHovering(true)}
+      onBlur={() => {
+        setHovering(false);
+        setPreviewIndex(0);
+      }}
+      className="group relative w-44 md:w-52 shrink-0 snap-start rounded-md overflow-hidden bg-surface-sunken transition-transform duration-200 ease-out hover:scale-105 hover:z-10 focus-visible:scale-105 focus-visible:z-10 focus-visible:outline-2 focus-visible:outline-accent"
     >
       <div className="relative aspect-video">
-        {album.cover ? (
-          <Image
-            src={album.cover}
-            alt=""
-            fill
-            sizes="(max-width: 768px) 176px, 208px"
-            className="object-cover"
-          />
+        {baseSrc ? (
+          <>
+            {/* Base layer (the cover) — all preview images are pre-mounted on
+                top of it so cycling toggles opacity instead of swapping
+                `src`, avoiding a network refetch (and blank flash) per tick. */}
+            <Image
+              src={baseSrc}
+              alt=""
+              fill
+              sizes="(max-width: 768px) 176px, 208px"
+              className={`object-cover transition-opacity duration-300 ${hovering && album.previewUrls.length > 0 ? "opacity-0" : "opacity-100"}`}
+            />
+            {album.previewUrls.map((url, i) => (
+              <Image
+                key={url}
+                src={url}
+                alt=""
+                fill
+                sizes="(max-width: 768px) 176px, 208px"
+                className={`object-cover transition-opacity duration-300 ${hovering && i === previewIndex ? "opacity-100" : "opacity-0"}`}
+              />
+            ))}
+          </>
         ) : (
           <div className="flex h-full w-full items-center justify-center">
             <span className="font-mono text-[10px] uppercase tracking-wide text-text-faint">

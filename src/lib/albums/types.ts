@@ -6,6 +6,8 @@ export type AlbumSummary = {
   description: string | null;
   type: "private" | "shared";
   cover: string | null;
+  /** Up to a handful of recent thumbnails, for the card hover-preview cycle. */
+  previewUrls: string[];
   itemCount: number;
   role: Role;
   updatedAt: string;

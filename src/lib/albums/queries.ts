@@ -32,6 +32,70 @@ async function countActiveMediaByAlbum(
   return counts;
 }
 
+/** Most recent (non-deleted) upload timestamp per album, if any. */
+async function getLatestUploadByAlbum(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  albumIds: string[],
+): Promise<Map<string, string>> {
+  const latest = new Map<string, string>();
+  if (albumIds.length === 0) return latest;
+
+  const { data, error } = await supabase
+    .from("media")
+    .select("album_id, created_at")
+    .in("album_id", albumIds)
+    .is("deleted_at", null);
+
+  if (error) throw error;
+  for (const row of data ?? []) {
+    const existing = latest.get(row.album_id);
+    if (!existing || row.created_at > existing) {
+      latest.set(row.album_id, row.created_at);
+    }
+  }
+  return latest;
+}
+
+const PREVIEW_COUNT = 4;
+
+/** Up to PREVIEW_COUNT recent thumbnail signed URLs per album, most recent first. */
+async function getPreviewsByAlbum(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  albumIds: string[],
+): Promise<Map<string, string[]>> {
+  const previews = new Map<string, string[]>();
+  if (albumIds.length === 0) return previews;
+
+  const { data, error } = await supabase
+    .from("media")
+    .select("album_id, thumbnail_storage_path, created_at")
+    .in("album_id", albumIds)
+    .is("deleted_at", null)
+    .not("thumbnail_storage_path", "is", null)
+    .order("created_at", { ascending: false });
+
+  if (error) throw error;
+
+  const pathsByAlbum = new Map<string, string[]>();
+  for (const row of data ?? []) {
+    const list = pathsByAlbum.get(row.album_id) ?? [];
+    if (list.length < PREVIEW_COUNT) {
+      list.push(row.thumbnail_storage_path!);
+      pathsByAlbum.set(row.album_id, list);
+    }
+  }
+
+  const signedUrls = await getSignedMediaUrls([...pathsByAlbum.values()].flat());
+
+  for (const [albumId, paths] of pathsByAlbum) {
+    previews.set(
+      albumId,
+      paths.map((p) => signedUrls.get(p)).filter((u): u is string => Boolean(u)),
+    );
+  }
+  return previews;
+}
+
 /**
  * Albums the signed-in user owns or is a member of. RLS already scopes
  * this to their albums — the `.is("deleted_at", null)` here is a browse
@@ -60,25 +124,44 @@ export async function getAlbumsForCurrentUser(): Promise<AlbumSummary[]> {
 
   if (error) throw error;
   const rows = data ?? [];
+  const albumIds = rows.map((row) => row.id);
 
   const coverPaths = rows
     .map((row) => row.cover?.storage_path)
     .filter((path): path is string => Boolean(path));
-  const [signedUrls, itemCounts] = await Promise.all([
+  const [signedUrls, itemCounts, latestUploads, previews] = await Promise.all([
     getSignedMediaUrls(coverPaths),
-    countActiveMediaByAlbum(supabase, rows.map((row) => row.id)),
+    countActiveMediaByAlbum(supabase, albumIds),
+    getLatestUploadByAlbum(supabase, albumIds),
+    getPreviewsByAlbum(supabase, albumIds),
   ]);
 
-  return rows.map((row) => ({
-    id: row.id,
-    title: row.title,
-    description: row.description,
-    type: row.type,
-    cover: row.cover?.storage_path ? (signedUrls.get(row.cover.storage_path) ?? null) : null,
-    itemCount: itemCounts.get(row.id) ?? 0,
-    role: (row.membership[0]?.role ?? "viewer") as Role,
-    updatedAt: row.updated_at.slice(0, 10),
+  // "Recently active" means real activity (an upload), not just a
+  // metadata edit — so albums are ordered by max(updated_at, latest
+  // upload) rather than trusting the query's own `ORDER BY updated_at`.
+  const withActivity = rows.map((row) => ({
+    lastActivity: maxIso(row.updated_at, latestUploads.get(row.id)),
+    summary: {
+      id: row.id,
+      title: row.title,
+      description: row.description,
+      type: row.type,
+      cover: row.cover?.storage_path ? (signedUrls.get(row.cover.storage_path) ?? null) : null,
+      previewUrls: previews.get(row.id) ?? [],
+      itemCount: itemCounts.get(row.id) ?? 0,
+      role: (row.membership[0]?.role ?? "viewer") as Role,
+      updatedAt: row.updated_at.slice(0, 10),
+    } satisfies AlbumSummary,
   }));
+
+  withActivity.sort((a, b) => (a.lastActivity < b.lastActivity ? 1 : -1));
+
+  return withActivity.map((row) => row.summary);
+}
+
+function maxIso(a: string, b: string | undefined): string {
+  if (!b) return a;
+  return a > b ? a : b;
 }
 
 /**
@@ -129,6 +212,7 @@ export async function getAlbumDetail(id: string): Promise<AlbumDetail | null> {
     description: data.description,
     type: data.type,
     cover: await getSignedMediaUrl(data.cover?.storage_path ?? null),
+    previewUrls: [], // not used on the album detail page — the full grid is already the "preview"
     itemCount: itemCounts.get(id) ?? 0,
     role: mine.role,
     updatedAt: data.updated_at.slice(0, 10),
