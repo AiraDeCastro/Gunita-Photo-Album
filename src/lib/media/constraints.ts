@@ -13,7 +13,12 @@ export const PHOTO_MIME_TYPES = [
 export const VIDEO_MIME_TYPES = ["video/mp4", "video/quicktime", "video/webm"] as const;
 
 export const MAX_PHOTO_BYTES = 25 * 1024 * 1024;
-export const MAX_VIDEO_BYTES = 1024 * 1024 * 1024;
+// 45 MB, not the PRD's original 1 GB: the deployed Supabase project's
+// Storage upload ceiling is 50 MiB on the free tier (raising it 402s with
+// "upgrade to a paid tier"), so this stays under that with headroom rather
+// than accepting uploads the Storage layer would reject anyway. See
+// CLAUDE.md's "Media & storage" section.
+export const MAX_VIDEO_BYTES = 45 * 1_000_000;
 export const MAX_VIDEO_DURATION_SECONDS = 5 * 60;
 export const MAX_VIDEO_LONG_EDGE = 1920;
 export const MAX_VIDEO_SHORT_EDGE = 1080;
@@ -55,7 +60,7 @@ export function validateFile(file: { type: string; size: number }): MediaValidat
     return { error: "Photos must be 25 MB or under." };
   }
   if (kind === "video" && file.size > MAX_VIDEO_BYTES) {
-    return { error: "Videos must be 1 GB or under." };
+    return { error: "Videos must be 45 MB or under." };
   }
   return null;
 }

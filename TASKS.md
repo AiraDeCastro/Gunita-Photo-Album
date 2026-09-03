@@ -154,21 +154,44 @@ order or last edit) drives the sort; mobile viewport (375×812) checked on
 the browse home and an album detail page — nav, hero, and grid all held up
 without horizontal overflow.
 
-## Milestone 8 — Non-functional hardening
+## Milestone 8 — Non-functional hardening *(done)*
 
-- [ ] Audit every route/server action for server-side authorization (PRD §NFR)
-- [ ] Lazy-load thumbnails and hover previews
-- [ ] Full keyboard navigation across rows and the lightbox, with visible focus states
-- [ ] Alt text on all images; respect `prefers-reduced-motion`
-- [ ] Resumable or clearly retryable upload on interruption
-- [ ] Automated tests covering the role/permission matrix and the storage-cap enforcement path
+- [x] Audit every route/server action for server-side authorization (PRD §NFR) — reviewed every server action (`src/lib/albums/actions.ts`, `src/lib/media/actions.ts`), both route handlers, and every RLS policy in `supabase/migrations/`. Result: no gaps found, no code changes needed. Every mutation goes through the RLS-respecting client except the two already-documented, deliberate exceptions (`inviteMember`'s email lookup and the purge cron, both using `admin.ts` for reasons RLS itself can't express — see CLAUDE.md). This audit is now backed by the automated role-matrix tests below rather than just a one-time read-through.
+- [x] Lazy-load thumbnails and hover previews — `AlbumCard`'s preview `<Image>`s (up to 4 per card) now only mount after the card is first hovered/focused, instead of unconditionally on every card the moment it scrolls into view; verified in the browser that a fresh page load fetches only the base cover images (3 `<img>` tags for one album across the hero/rows) and hovering adds exactly 4 more. Grid thumbnails already used Next's default `loading="lazy"`, no change needed there.
+- [x] Full keyboard navigation across rows and the lightbox, with visible focus states — `Lightbox` now traps Tab/Shift+Tab within the dialog, moves focus to the Close button on open, and restores focus to whatever triggered it (a MediaTile's open button) on close; verified live (Shift+Tab from Close wrapped to Next, Escape returned focus to the exact trigger button). All Lightbox and MediaTile-open buttons got explicit `focus-visible` rings to match `AlbumCard`'s existing pattern. Album rows were already fully tab-reachable (native `<Link>`s) with visible focus rings from Milestone 7 — no change needed there.
+- [x] Alt text on all images; respect `prefers-reduced-motion` — Hero/AlbumCard covers and MediaTile/Lightbox images now carry descriptive alt text (album title or upload date) instead of `alt=""`; the AlbumCard's alternating crossfade layers stay `alt=""` since the base layer's alt already describes "a photo from this album" and re-announcing it 4x per card would be noise, not signal, for screen readers. `globals.css` now zeroes out transition/animation durations under `prefers-reduced-motion: reduce`; the hover-preview's `setInterval` cycle (which CSS can't stop) checks the same preference via a new `usePrefersReducedMotion` hook (`src/lib/use-reduced-motion.ts`, built on `useSyncExternalStore` to avoid both a hydration mismatch and the `set-state-in-effect` lint rule).
+- [x] Resumable or clearly retryable upload on interruption — true resumable (chunked) upload was judged out of scope for the value it'd add here; went with clearly-retryable instead. `MediaUploader` now keeps the original `File` on each upload task, and a failed task's tile shows a **Retry** button next to Dismiss that resubmits the same file. Verified live: an oversized file fails with its validation message, Retry re-attempts and reproduces the identical (correct) failure, proving the file reference survives the round-trip rather than being lost.
+- [x] Automated tests covering the role/permission matrix and the storage-cap enforcement path — first test suite in the project (Vitest, `npm test`). Unit tests (`tests/unit/`) cover the pure validation/quota logic (`constraints.ts`, and a new extracted `wouldExceedQuota` in `quota.ts`, now used by the upload route instead of an inline comparison). Integration tests (`tests/integration/`) run against the *real* local Supabase Postgres under real RLS — two/three real signed-up test users, real role changes, real inserts/updates — covering: non-members can't see or join an album; viewers can see but not edit or upload; editors can edit and upload but not delete the album; admins can invite/promote members but still can't delete the album or ever remove the owner (even by direct attempt); only the owner can soft-delete. A separate storage-cap integration test seeds real `media` rows (including a soft-deleted one) and confirms the summed usage matches `getStorageUsageBytes`'s own query — soft-deleted media still counts — before feeding that real number into `wouldExceedQuota` to confirm the boundary (exactly-15GB allowed, one byte over blocked). All 35 tests pass locally; the integration suites skip with a clear message (not a failure) if `supabase start` hasn't been run.
 
-## Milestone 9 — v1 launch
+## Milestone 9 — v1 launch *(in progress — blocked on account setup)*
 
-- [ ] Deploy to Vercel (staging + production environments)
-- [ ] Golden-path smoke test: sign up → create shared album → invite a member → upload → edit → delete → restore
-- [ ] Update `README.md` with real setup steps (provider accounts, env vars)
-- [ ] Push to `origin/main` on GitHub (pending explicit go-ahead — see `CLAUDE.md`)
+- [ ] Deploy to Vercel (staging + production environments) — blocked on
+  external accounts only I can't create on your behalf: a Vercel account
+  with the GitHub repo connected, and a cloud Supabase project (local dev
+  uses the Dockerized CLI, which a deployed app can't reach). See
+  `README.md`'s new "Deploying" section for the exact steps once those
+  exist.
+- [x] Golden-path smoke test: sign up → create shared album → invite a
+  member → upload → edit → delete → restore — walked the full flow live
+  against the local stack with two fresh accounts (not reused test data),
+  from the invited member's side too (confirmed they actually see the
+  shared album, not just that the DB row exists). **Found and fixed one
+  real bug**: visiting `/album/<malformed-id>` (a stale bookmark, a typo,
+  a crawler probing paths) threw an unhandled 500 instead of a clean 404
+  — `getAlbumDetail` didn't catch Postgres' `22P02` (invalid uuid syntax)
+  error before rethrowing it. Fixed in `src/lib/albums/queries.ts`:
+  that specific error code is now treated as "not found," same as any
+  other non-existent album id. Reproduced and reverified live (500 → 404)
+  after the fix, not just by reading the code.
+- [x] Update `README.md` with real setup steps (provider accounts, env
+  vars) — full rewrite: prerequisites (Docker Desktop, Supabase CLI, the
+  Windows/WSL2 quirk), local setup, an env var reference table, a
+  "Deploying" section (Vercel + cloud Supabase project steps, including
+  the private `media` bucket that `db push` doesn't create and the
+  `CRON_SECRET` requirement), and a real project structure section
+  (mock-data references removed).
+- [ ] Push to `origin/main` on GitHub (pending explicit go-ahead — see
+  `CLAUDE.md`)
 
 ## Milestone 10 — v1.1
 

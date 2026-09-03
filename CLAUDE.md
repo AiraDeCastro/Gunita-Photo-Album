@@ -19,8 +19,9 @@ coding, and PRD.md is the source of truth if the two ever disagree.
 
 Auth (Milestone 2), albums/sharing/roles (Milestone 3), upload/media
 (Milestone 4), storage accounting (Milestone 5), deletion/recovery
-(Milestone 6), and the browse experience (Milestone 7) are all real now —
-that's every Milestone 0–7 item done. Sign-up/sign-in/sign-out go through
+(Milestone 6), the browse experience (Milestone 7), and non-functional
+hardening (Milestone 8) are all real now — that's every Milestone 0–8 item
+done. Sign-up/sign-in/sign-out go through
 Supabase Auth; every route redirects signed-out users to `/sign-in`. Albums
 are created, renamed, deleted, shared, and role-managed against the real
 `albums`/`album_members` tables (`src/lib/albums/`) — RLS is the actual
@@ -34,10 +35,18 @@ hard-deletes anything past that — see "Deletion & recovery" below. The
 browse home's hero and hover-preview cards are driven by real activity and
 real thumbnails, and every media grid opens into a real lightbox — see
 "Browse experience" below. `src/lib/mock-data.ts` is gone; nothing in
-`src/` reads from it anymore.
+`src/` reads from it anymore. The app has a real test suite now (Vitest —
+see "Testing" below), the RLS role matrix is verified against a live local
+Postgres rather than just reviewed, uploads are retryable on failure, and
+the hover-preview/lightbox got an accessibility pass (lazy-loaded previews,
+real alt text, `prefers-reduced-motion`, a focus-trapped lightbox).
 
-What's next is Milestone 8 (non-functional hardening) before v1 launch
-prep.
+Milestone 9 (v1 launch) is in progress: the golden-path flow (sign up →
+create shared album → invite → upload → edit → delete → restore) has been
+walked live end-to-end and `README.md` now has real setup/deploy docs.
+What's left is genuinely blocked on external accounts — a Vercel project
+and a cloud Supabase project — that only you can create; see `README.md`'s
+"Deploying" section for the exact steps once those exist.
 
 ## Local backend (Supabase via Docker)
 
@@ -99,6 +108,16 @@ Local endpoints once `supabase start` has been run:
   `admin.ts`, not `server.ts` — "profiles are viewable by album co-members"
   is exactly false for someone not yet invited. See `inviteMember` in
   `src/lib/albums/actions.ts`.
+- A route param that isn't a valid uuid (stale bookmark, typo, a crawler
+  probing paths) isn't a "not found" by default — Postgres rejects it
+  before RLS even runs, as error code `22P02`
+  (`invalid_text_representation`), and a bare `if (error) throw error;`
+  turns that into an unhandled 500. `getAlbumDetail` (`src/lib/albums/
+  queries.ts`) special-cases `22P02` into a `null` return, same as a
+  real "no such album," so the page's existing `notFound()` handles it.
+  Found via a golden-path smoke test hitting a malformed `/album/[id]`
+  URL by accident — worth checking for the same pattern in any new query
+  that takes a route param straight into an `.eq("id", ...)`.
 - After any schema change, regenerate types: `supabase gen types
   typescript --local > src/lib/supabase/types.ts` (run from WSL).
 - App-side clients are in `src/lib/supabase/`: `client.ts` (browser),
@@ -200,7 +219,8 @@ Local endpoints once `supabase start` has been run:
   `src/lib/albums/queries.ts`, following the same pattern as
   `countActiveMediaByAlbum` — plain queries reduced in JS, not embedded
   PostgREST aggregates, given the count-with-filter bug from Milestone 3.
-- `AlbumCard`'s hover-preview cycle pre-mounts every preview thumbnail and
+- `AlbumCard`'s hover-preview cycle mounts every preview thumbnail (once,
+  on first hover/focus — see "Non-functional hardening" below) and
   crossfades between them via opacity, rather than swapping one `<Image>`'s
   `src`. The swap-`src` version was tried first and produced a visible
   blank flash on every tick, since each preview URL is a distinct signed
@@ -212,6 +232,56 @@ Local endpoints once `supabase start` has been run:
   land on the media container's own (no-op) click handler instead of
   Prev/Next. Caught by actually clicking Next in the browser and watching
   the index not change, not by code review.
+
+### Non-functional hardening
+
+- **Server-side authorization audit** (Milestone 8): every server action in
+  `src/lib/albums/actions.ts`/`src/lib/media/actions.ts`, both route
+  handlers, and every RLS policy in `supabase/migrations/` were read
+  through end to end looking for a mutation that only the UI, not the DB,
+  was gating. None found — the app already followed "RLS is the actual
+  boundary" consistently. The two places that bypass RLS
+  (`inviteMember`'s admin-client email lookup; the purge cron) were
+  already deliberate and documented (see "Schema & client" and "Deletion &
+  recovery" above). This audit is now backed by `tests/integration/
+  role-matrix.test.ts` rather than being a one-time read-through — see
+  "Testing" below.
+- **Hover-preview images are lazy, not just lazy-loaded**: `AlbumCard` used
+  to mount all `previewUrls` `<Image>`s unconditionally the moment a card
+  entered the viewport (relying on `loading="lazy"` to defer the actual
+  fetch). That still meant every visible card fetched 4 extra thumbnails
+  nobody might ever see. It now tracks `everHovered` and doesn't mount the
+  preview images at all until the card is first hovered/focused — verified
+  in the browser: a fresh page load has 3 `<img>` tags (hero + one card's
+  cover), hovering that card adds exactly 4 more.
+- **`prefers-reduced-motion`** is handled in two places, because one signal
+  can't reach both: a global rule in `globals.css` zeroes out CSS
+  transition/animation durations (covers the hover-scale, crossfade, and
+  gradient-fade transitions), while the hover-preview's `setInterval`-based
+  cycle — which CSS can't touch — checks a new `usePrefersReducedMotion`
+  hook (`src/lib/use-reduced-motion.ts`) and simply doesn't cycle when the
+  user has asked for reduced motion. That hook is built on
+  `useSyncExternalStore`, not `useState`+`useEffect`: the naive version
+  hit the `react-hooks/set-state-in-effect` lint rule *and* would have
+  caused a hydration mismatch (server always renders `false`, since
+  `matchMedia` doesn't exist server-side) — `useSyncExternalStore`'s
+  `getServerSnapshot` param solves both at once.
+- **Lightbox focus management**: opening it moves focus to the Close
+  button (previously focus silently stayed on whatever was behind the
+  dialog, or fell back to `<body>`); closing it — however triggered —
+  restores focus to whatever element opened it, via
+  `document.activeElement` captured before the dialog mounts. Tab/Shift+Tab
+  are trapped inside the dialog's own focusable elements rather than
+  escaping to the page behind it. Verified live: Shift+Tab from the Close
+  button (the first focusable element) wrapped to Next (the last), and
+  Escape returned focus to the exact MediaTile button that opened it.
+- **Upload retry, not resumable upload**: true resumable (chunked/
+  tus-style) upload was judged more complexity than this app's upload
+  sizes justify. `MediaUploader`'s `UploadTask` now keeps the original
+  `File` object, and a failed tile's new Retry button just resubmits it
+  through the normal `uploadOne` path — same validation, same XHR, same
+  progress UI, just re-triggered without the user re-picking the file.
+- **First test suite** (Vitest): see "Testing" below.
 
 When implementing real functionality, treat the PRD's phasing as the guide
 for what belongs in this pass vs. later:
@@ -275,6 +345,46 @@ Don't build v1.1/v2 features into the current pass unless explicitly asked.
 - An Admin can **never** remove or demote the Owner, even for an inactive
   account — that always requires support intervention outside the app.
 
+## Testing
+
+**Vitest** (`npm test`), chosen for zero-config TS/ESM support and speed —
+no other test runner is in play. Two kinds of tests live in `tests/`:
+
+- `tests/unit/` — pure functions only (`src/lib/media/constraints.ts`,
+  `src/lib/storage/quota.ts`). No DB, no network, always run.
+- `tests/integration/` — real signed-up test users against the *real*
+  local Supabase Postgres, exercising actual RLS policies rather than
+  mocking them. This is the only way to actually verify "RLS is the
+  enforcement boundary" claims made throughout this file instead of just
+  asserting it in prose. Requires `supabase start` to already be running
+  (see "Local backend" above) — `tests/helpers/supabase-test-clients.ts`
+  checks reachability first and the suites `describe.skipIf` themselves
+  with a clear message if it isn't, rather than failing opaquely.
+  - `role-matrix.test.ts` walks a member through viewer → editor → admin
+    on a real album, asserting what each role can and can't do against
+    the actual PRD §4 matrix — including the "admin can never remove the
+    owner" rule, tested by directly attempting the delete and confirming
+    it's a silent no-op (RLS `USING` excludes `role = 'owner'` entirely,
+    so this is not an error — it's 0 rows matched).
+  - `storage-cap.test.ts` seeds real `media` rows (including a
+    soft-deleted one, since those still count against quota) and confirms
+    the summed usage matches what `getStorageUsageBytes` itself would
+    compute, then feeds that real number into `wouldExceedQuota` to check
+    the exact-cap boundary.
+  - Test users are created via `supabase.auth.admin.createUser` (real auth
+    users, `email_confirm: true` so no Mailpit round-trip needed — local
+    `enable_confirmations = false` means this isn't even required, but
+    it's explicit) and deleted in `afterAll`; deleting the auth user
+    cascades through `profiles` → `albums`/`album_members`/`media` via the
+    existing FKs, so no separate cleanup query is needed.
+  - A silent-no-op RLS denial (`UPDATE`/`DELETE` whose `USING` clause
+    excludes the row) returns `{ data: null, error: null }`, not an error
+    — only a `WITH CHECK` failure on a row that *did* match `USING` (or
+    any `INSERT` check failure) throws. Get this backwards and a test
+    asserting `error).not.toBeNull()` on the wrong kind of denial will
+    fail confusingly; see the comments in `role-matrix.test.ts` for which
+    is which and why, if writing a new one.
+
 ## Open questions
 
 None outstanding for v1 scope (see `docs/PRD.md` §10). If new ambiguities
@@ -286,6 +396,7 @@ come up while implementing, flag them here rather than silently deciding.
 npm run dev      # start dev server (localhost:3000)
 npm run build    # production build — run before considering a change done
 npm run lint     # eslint
+npm test         # vitest — unit tests always run; integration tests need supabase start first
 ```
 
 Supabase (run via WSL — see "Local backend" above):
@@ -294,5 +405,3 @@ supabase start   # start the local Postgres/Auth/Storage containers
 supabase stop    # stop them
 supabase status  # print URLs/keys again (also written to .env.local)
 ```
-
-There is no test suite yet. When adding one, note the choice here.

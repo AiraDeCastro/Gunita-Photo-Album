@@ -190,7 +190,14 @@ export async function getAlbumDetail(id: string): Promise<AlbumDetail | null> {
     .is("deleted_at", null)
     .maybeSingle();
 
-  if (error) throw error;
+  // A malformed id (e.g. a stale bookmark, a typo, a crawler probing paths)
+  // isn't a real DB error — Postgres just can't parse it as a uuid (code
+  // 22P02, invalid_text_representation). Treat it the same as "not found"
+  // instead of throwing an unhandled 500.
+  if (error) {
+    if (error.code === "22P02") return null;
+    throw error;
+  }
   if (!data) return null;
 
   const members = data.album_members

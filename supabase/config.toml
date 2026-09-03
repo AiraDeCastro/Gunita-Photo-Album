@@ -113,11 +113,16 @@ port = 54324
 
 [storage]
 enabled = true
-# Ceiling across all buckets — bumped from the 50MiB default to allow the
-# 1GB video cap from docs/PRD.md §5. Photos are further restricted to 25MB
-# at the application layer (Storage buckets can't enforce a per-mime-type
-# limit within one bucket).
-file_size_limit = "1GB"
+# Ceiling across all buckets. Originally 1GB to match the PRD's video cap,
+# but the deployed project's actual Storage upload ceiling is 50MiB on the
+# free tier — raising it further 402s with "upgrade to a paid tier". Set to
+# match what's actually achievable in production rather than a value that
+# only works locally; the app's own MAX_VIDEO_BYTES (45MB, see
+# src/lib/media/constraints.ts) is the real enforced limit, comfortably
+# under this. Photos are further restricted to 25MB at the application
+# layer (Storage buckets can't enforce a per-mime-type limit within one
+# bucket).
+file_size_limit = "50MiB"
 
 # The "media" bucket backs all album photo/video uploads (Milestone 4).
 # Private (not public): access goes through RLS policies on
@@ -125,7 +130,7 @@ file_size_limit = "1GB"
 # segment — see the add_media_storage migration.
 [storage.buckets.media]
 public = false
-file_size_limit = "1GB"
+file_size_limit = "50MiB"
 allowed_mime_types = [
   "image/jpeg", "image/png", "image/heic", "image/heif", "image/webp",
   "video/mp4", "video/quicktime", "video/webm",
@@ -162,12 +167,18 @@ max_indexes = 5
 [auth]
 enabled = true
 # The base URL of your website. Used as an allow-list for redirects and for constructing URLs used
-# in emails.
-site_url = "http://127.0.0.1:3000"
+# in emails. Set to the real Vercel deploy domain (not localhost) since this
+# value gets pushed to the linked cloud project via `supabase config push`
+# — pushing a localhost value to production silently breaks auth-email
+# redirect links there. Doesn't affect local dev in practice: local auth
+# emails go to Mailpit regardless, and email confirmation is disabled
+# locally (`enable_confirmations = false` below), so this value is never
+# actually used to build a link during `supabase start`.
+site_url = "https://gunita-photo-album.vercel.app"
 # The public URL that Auth serves on. Defaults to the API external URL with `/auth/v1` appended.
 # external_url = ""
 # A list of *exact* URLs that auth providers are permitted to redirect to post authentication.
-additional_redirect_urls = ["https://127.0.0.1:3000"]
+additional_redirect_urls = ["https://gunita-photo-album.vercel.app", "http://localhost:3000"]
 # How long tokens are valid for, in seconds. Defaults to 3600 (1 hour), maximum 604,800 (1 week).
 jwt_expiry = 3600
 # JWT issuer URL. If not set, defaults to auth.external_url.
