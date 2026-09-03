@@ -18,6 +18,7 @@ const ACCEPT = [...PHOTO_MIME_TYPES, ...VIDEO_MIME_TYPES].join(",");
 
 type UploadTask = {
   key: string;
+  file: File;
   name: string;
   progress: number;
   status: "preparing" | "uploading" | "error";
@@ -66,7 +67,10 @@ export default function MediaUploader({
 
   async function uploadOne(file: File) {
     const key = crypto.randomUUID();
-    setTasks((prev) => [...prev, { key, name: file.name, progress: 0, status: "preparing" }]);
+    setTasks((prev) => [
+      ...prev,
+      { key, file, name: file.name, progress: 0, status: "preparing" },
+    ]);
 
     const fileError = validateFile(file);
     if (fileError) {
@@ -207,7 +211,15 @@ export default function MediaUploader({
               />
             ))}
             {tasks.map((task) => (
-              <UploadTile key={task.key} task={task} onDismiss={() => dismissTask(task.key)} />
+              <UploadTile
+                key={task.key}
+                task={task}
+                onDismiss={() => dismissTask(task.key)}
+                onRetry={() => {
+                  dismissTask(task.key);
+                  void uploadOne(task.file);
+                }}
+              />
             ))}
           </div>
         )}
@@ -245,12 +257,12 @@ function MediaTile({
         type="button"
         onClick={onOpen}
         aria-label={`Open ${item.kind}`}
-        className="absolute inset-0 z-0 h-full w-full cursor-pointer"
+        className="absolute inset-0 z-0 h-full w-full cursor-pointer focus-visible:z-10 focus-visible:outline-2 focus-visible:outline-accent"
       >
         {item.thumbnailUrl ? (
           <Image
             src={item.thumbnailUrl}
-            alt=""
+            alt={`${item.kind === "video" ? "Video" : "Photo"} uploaded ${item.createdAt}`}
             fill
             sizes="200px"
             className="object-cover"
@@ -304,7 +316,15 @@ function MediaTile({
   );
 }
 
-function UploadTile({ task, onDismiss }: { task: UploadTask; onDismiss: () => void }) {
+function UploadTile({
+  task,
+  onDismiss,
+  onRetry,
+}: {
+  task: UploadTask;
+  onDismiss: () => void;
+  onRetry: () => void;
+}) {
   return (
     <div className="relative flex aspect-square flex-col items-center justify-center gap-2 rounded-md border border-border bg-surface p-3 text-center">
       <p className="w-full truncate text-xs text-text-muted">{task.name}</p>
@@ -313,13 +333,22 @@ function UploadTile({ task, onDismiss }: { task: UploadTask; onDismiss: () => vo
           <p className="text-xs text-danger" role="alert">
             {task.error}
           </p>
-          <button
-            type="button"
-            onClick={onDismiss}
-            className="text-xs text-text-faint hover:text-text transition-colors"
-          >
-            Dismiss
-          </button>
+          <div className="flex gap-3">
+            <button
+              type="button"
+              onClick={onRetry}
+              className="text-xs text-accent hover:underline focus-visible:outline-2 focus-visible:outline-accent"
+            >
+              Retry
+            </button>
+            <button
+              type="button"
+              onClick={onDismiss}
+              className="text-xs text-text-faint hover:text-text transition-colors focus-visible:outline-2 focus-visible:outline-accent"
+            >
+              Dismiss
+            </button>
+          </div>
         </>
       ) : (
         <div className="h-1.5 w-full overflow-hidden rounded-full bg-surface-sunken">

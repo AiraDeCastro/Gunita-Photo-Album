@@ -2,7 +2,12 @@ import { revalidatePath } from "next/cache";
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { MEDIA_BUCKET } from "@/lib/storage/media";
-import { FREE_TIER_BYTES, formatBytes, getStorageUsageBytes } from "@/lib/storage/quota";
+import {
+  FREE_TIER_BYTES,
+  formatBytes,
+  getStorageUsageBytes,
+  wouldExceedQuota,
+} from "@/lib/storage/quota";
 import {
   extensionForMime,
   kindForMime,
@@ -41,7 +46,7 @@ export async function POST(request: NextRequest) {
   if (fileError) return NextResponse.json(fileError, { status: 400 });
 
   const currentUsage = await getStorageUsageBytes(user.id);
-  if (currentUsage + file.size > FREE_TIER_BYTES) {
+  if (wouldExceedQuota(currentUsage, file.size)) {
     return NextResponse.json(
       {
         error: `This upload would put you over your ${formatBytes(FREE_TIER_BYTES)} free storage limit (${formatBytes(currentUsage)} used). Delete some media or upgrade your plan.`,

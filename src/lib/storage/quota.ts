@@ -17,6 +17,15 @@ export async function getStorageUsageBytes(userId: string): Promise<number> {
   return (data ?? []).reduce((sum, row) => sum + row.bytes, 0);
 }
 
+/** Pure so the boundary condition (exactly at the cap) is unit-testable without a DB. */
+export function wouldExceedQuota(
+  currentUsageBytes: number,
+  uploadBytes: number,
+  limitBytes: number = FREE_TIER_BYTES,
+): boolean {
+  return currentUsageBytes + uploadBytes > limitBytes;
+}
+
 export function formatBytes(bytes: number): string {
   const gb = bytes / 1_000_000_000;
   if (gb >= 1) return `${gb.toFixed(gb >= 10 ? 0 : 1)} GB`;

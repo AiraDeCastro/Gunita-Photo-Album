@@ -8,7 +8,7 @@ export default function Hero({ album }: { album: AlbumSummary }) {
       {album.cover && (
         <Image
           src={album.cover}
-          alt=""
+          alt={`Cover photo for ${album.title}`}
           fill
           priority
           sizes="100vw"

@@ -55,3 +55,16 @@ body {
   color: var(--text);
   font-family: var(--font-body), -apple-system, "Segoe UI", sans-serif;
 }
+
+/* Neutralizes CSS transitions/animations (hover scale, crossfade, gradient
+   fade) for anyone who has asked the OS for reduced motion. The JS-driven
+   hover-preview cycle in AlbumCard checks the same media query itself,
+   since stopping a `setInterval` isn't something CSS alone can do. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

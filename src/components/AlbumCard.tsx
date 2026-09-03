@@ -4,15 +4,18 @@ import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import type { AlbumSummary } from "@/lib/albums/types";
+import { usePrefersReducedMotion } from "@/lib/use-reduced-motion";
 
 const CYCLE_MS = 700;
 
 export default function AlbumCard({ album }: { album: AlbumSummary }) {
   const [hovering, setHovering] = useState(false);
+  const [everHovered, setEverHovered] = useState(false);
   const [previewIndex, setPreviewIndex] = useState(0);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const reducedMotion = usePrefersReducedMotion();
 
-  const canCycle = hovering && album.previewUrls.length > 1;
+  const canCycle = hovering && !reducedMotion && album.previewUrls.length > 1;
 
   useEffect(() => {
     if (!canCycle) return;
@@ -29,12 +32,18 @@ export default function AlbumCard({ album }: { album: AlbumSummary }) {
   return (
     <Link
       href={`/album/${album.id}`}
-      onMouseEnter={() => setHovering(true)}
+      onMouseEnter={() => {
+        setHovering(true);
+        setEverHovered(true);
+      }}
       onMouseLeave={() => {
         setHovering(false);
         setPreviewIndex(0);
       }}
-      onFocus={() => setHovering(true)}
+      onFocus={() => {
+        setHovering(true);
+        setEverHovered(true);
+      }}
       onBlur={() => {
         setHovering(false);
         setPreviewIndex(0);
@@ -44,26 +53,31 @@ export default function AlbumCard({ album }: { album: AlbumSummary }) {
       <div className="relative aspect-video">
         {baseSrc ? (
           <>
-            {/* Base layer (the cover) — all preview images are pre-mounted on
-                top of it so cycling toggles opacity instead of swapping
-                `src`, avoiding a network refetch (and blank flash) per tick. */}
+            {/* Base layer (the cover) — preview images only mount once the
+                card has been hovered/focused at least once, so a page with
+                many albums doesn't eagerly fetch 4 extra thumbnails per card
+                that most visitors will never see. Once mounted they stay
+                mounted, so cycling toggles opacity instead of swapping
+                `src` (which caused a network refetch and blank flash per
+                tick). */}
             <Image
               src={baseSrc}
-              alt=""
+              alt={`Cover photo for ${album.title}`}
               fill
               sizes="(max-width: 768px) 176px, 208px"
               className={`object-cover transition-opacity duration-300 ${hovering && album.previewUrls.length > 0 ? "opacity-0" : "opacity-100"}`}
             />
-            {album.previewUrls.map((url, i) => (
-              <Image
-                key={url}
-                src={url}
-                alt=""
-                fill
-                sizes="(max-width: 768px) 176px, 208px"
-                className={`object-cover transition-opacity duration-300 ${hovering && i === previewIndex ? "opacity-100" : "opacity-0"}`}
-              />
-            ))}
+            {everHovered &&
+              album.previewUrls.map((url, i) => (
+                <Image
+                  key={url}
+                  src={url}
+                  alt=""
+                  fill
+                  sizes="(max-width: 768px) 176px, 208px"
+                  className={`object-cover transition-opacity duration-300 ${hovering && i === previewIndex ? "opacity-100" : "opacity-0"}`}
+                />
+              ))}
           </>
         ) : (
           <div className="flex h-full w-full items-center justify-center">
