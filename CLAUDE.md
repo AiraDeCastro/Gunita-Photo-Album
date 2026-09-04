@@ -41,12 +41,14 @@ Postgres rather than just reviewed, uploads are retryable on failure, and
 the hover-preview/lightbox got an accessibility pass (lazy-loaded previews,
 real alt text, `prefers-reduced-motion`, a focus-trapped lightbox).
 
-Milestone 9 (v1 launch) is in progress: the golden-path flow (sign up →
-create shared album → invite → upload → edit → delete → restore) has been
-walked live end-to-end and `README.md` now has real setup/deploy docs.
-What's left is genuinely blocked on external accounts — a Vercel project
-and a cloud Supabase project — that only you can create; see `README.md`'s
-"Deploying" section for the exact steps once those exist.
+Milestone 9 (v1 launch) is done: the app is deployed to production on
+Vercel (`gunita-photo-album.vercel.app`), connected to a real cloud
+Supabase project, and the golden-path flow (sign up → create shared album
+→ invite → upload → edit → delete → restore) has been verified live
+against production itself, not just locally. See "Deploying to production"
+below for the two deploy-only bugs that surfaced along the way — both are
+exactly the kind of thing that only shows up once real infrastructure is
+involved, not in local dev.
 
 ## Local backend (Supabase via Docker)
 
@@ -292,6 +294,44 @@ for what belongs in this pass vs. later:
 - **v2**: public link sharing, tagging, real-time collaboration.
 
 Don't build v1.1/v2 features into the current pass unless explicitly asked.
+
+### Deploying to production
+
+Live at `gunita-photo-album.vercel.app`, Vercel project `gunita-photo-album`
+under the `aira-de-castro` team, connected to cloud Supabase project
+`dvzeqiavilidqpbvcdof`. Three real bugs only showed up once actual
+infrastructure was involved — none of them were catchable by local dev,
+build, lint, or the test suite, only by loading and using the live site:
+
+- **Env vars present ≠ env vars working**: the first deploy attempt had
+  all 5 Supabase env vars set in the Vercel dashboard, but every request
+  500'd with `"Your project's URL and Key are required..."` — i.e. they
+  were empty at runtime despite existing in the dashboard. Root cause
+  was how they'd originally been created (Vercel's dashboard has two
+  distinct env var types — legacy CLI-style "Secret" references vs.
+  plain project-scoped values — and the legacy-style ones weren't
+  reaching the build). Fixed by deleting and re-adding all 5 as plain
+  values. If this ever recurs: don't assume the dashboard showing a var
+  exists means the running app can see it — verify with an actual
+  request, e.g. `vercel logs <deployment-url>` while hitting `/`.
+- **`next.config.ts`'s image `remotePatterns` only had the local host**:
+  see "Media & storage" above — `127.0.0.1:54321` was allowlisted, no
+  cloud host ever was. Every thumbnail and the hero image rendered
+  broken in production even after the env vars were fixed. Now
+  wildcarded to `*.supabase.co` so this doesn't recur if the project ref
+  ever changes or a staging project is added.
+- **The cloud project's free-tier Storage has its own upload ceiling**
+  (~50MiB) independent of anything this app enforces — well under the
+  PRD's 1GB v1 video cap. `MAX_VIDEO_BYTES` in `src/lib/media/
+  constraints.ts` is now 45MB, not 1GB, specifically because of this
+  cloud project's plan, not a product decision — raising it later is a
+  paid-plan/Storage-tier lever, document it there if it changes.
+
+Given all three, treat "the build passed" and "it loaded once" as
+insufficient proof a deploy actually works — the golden-path smoke test
+(sign up → shared album → invite → upload → edit → delete → restore) is
+what actually caught the second and third bugs above, run **against the
+live URL**, not local dev, with fresh throwaway accounts.
 
 ## Stack & conventions
 

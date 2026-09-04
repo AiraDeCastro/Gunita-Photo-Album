@@ -11,14 +11,18 @@ decisions if you're working on this codebase.
 
 ## Status
 
-v1 feature-complete: auth, private/shared albums with Owner/Admin/Editor/
+**v1 shipped**: live in production on Vercel, connected to a cloud
+Supabase project. Auth, private/shared albums with Owner/Admin/Editor/
 Viewer roles, photo & video upload, a real 15 GB/account storage cap, a
 30-day Recently Deleted window, and the full browse experience (hero,
 hover-preview rows, lightbox) are all implemented against a real Supabase
 backend — nothing runs on mock data. Automated tests cover the pure
 validation/quota logic and the role-permission matrix against real Row
-Level Security policies. What's left before launch is deploying it (see
-below) and cutting over from local to a cloud Supabase project.
+Level Security policies, and the full golden path (sign up → shared album
+→ invite → upload → edit → delete → restore) has been verified against
+the live deployment itself, not just locally. See `CLAUDE.md`'s "Deploying
+to production" section for a few deploy-specific gotchas worth knowing
+before touching infra config.
 
 ## Stack
 

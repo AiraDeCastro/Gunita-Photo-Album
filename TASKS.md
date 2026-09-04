@@ -163,26 +163,44 @@ without horizontal overflow.
 - [x] Resumable or clearly retryable upload on interruption — true resumable (chunked) upload was judged out of scope for the value it'd add here; went with clearly-retryable instead. `MediaUploader` now keeps the original `File` on each upload task, and a failed task's tile shows a **Retry** button next to Dismiss that resubmits the same file. Verified live: an oversized file fails with its validation message, Retry re-attempts and reproduces the identical (correct) failure, proving the file reference survives the round-trip rather than being lost.
 - [x] Automated tests covering the role/permission matrix and the storage-cap enforcement path — first test suite in the project (Vitest, `npm test`). Unit tests (`tests/unit/`) cover the pure validation/quota logic (`constraints.ts`, and a new extracted `wouldExceedQuota` in `quota.ts`, now used by the upload route instead of an inline comparison). Integration tests (`tests/integration/`) run against the *real* local Supabase Postgres under real RLS — two/three real signed-up test users, real role changes, real inserts/updates — covering: non-members can't see or join an album; viewers can see but not edit or upload; editors can edit and upload but not delete the album; admins can invite/promote members but still can't delete the album or ever remove the owner (even by direct attempt); only the owner can soft-delete. A separate storage-cap integration test seeds real `media` rows (including a soft-deleted one) and confirms the summed usage matches `getStorageUsageBytes`'s own query — soft-deleted media still counts — before feeding that real number into `wouldExceedQuota` to confirm the boundary (exactly-15GB allowed, one byte over blocked). All 35 tests pass locally; the integration suites skip with a clear message (not a failure) if `supabase start` hasn't been run.
 
-## Milestone 9 — v1 launch *(in progress — blocked on account setup)*
+## Milestone 9 — v1 launch *(done)*
 
-- [ ] Deploy to Vercel (staging + production environments) — blocked on
-  external accounts only I can't create on your behalf: a Vercel account
-  with the GitHub repo connected, and a cloud Supabase project (local dev
-  uses the Dockerized CLI, which a deployed app can't reach). See
-  `README.md`'s new "Deploying" section for the exact steps once those
-  exist.
+- [x] Deploy to Vercel (production environment) — live at
+  `gunita-photo-album.vercel.app`, connected to a real cloud Supabase
+  project (`dvzeqiavilidqpbvcdof`). Getting there surfaced two real
+  deploy-only bugs, both found by actually loading and using the live
+  site rather than just checking it built:
+  - The 5 Supabase-related env vars were present in Vercel but the app
+    still 500'd on every request (`"Your project's URL and Key are
+    required..."`) — root cause was however the existing vars had been
+    created, not a code issue. Fixed by deleting and re-adding all 5 as
+    plain project env vars (Config/Sensitive, not the legacy CLI-style
+    Secret reference), scoped to Production.
+  - Thumbnails and the hero image rendered as broken images in
+    production even after the env vars were fixed — `next.config.ts`'s
+    `images.remotePatterns` only ever allowlisted the local
+    `127.0.0.1:54321` Supabase host (the comment there literally flagged
+    this as a TODO from Milestone 4). Added a wildcarded `*.supabase.co`
+    pattern instead of pinning one project ref, so a future staging
+    project or ref change doesn't silently break images again.
+  - A 45MB local video-cap constant also had to drop from the PRD's 1GB
+    v1 spec — the connected cloud project's free-tier Storage rejects
+    uploads over ~50MiB regardless of what the app allows client-side.
+    See `src/lib/media/constraints.ts`; raising this is a paid-plan lever
+    the same way higher resolution/duration limits already are.
 - [x] Golden-path smoke test: sign up → create shared album → invite a
-  member → upload → edit → delete → restore — walked the full flow live
-  against the local stack with two fresh accounts (not reused test data),
-  from the invited member's side too (confirmed they actually see the
-  shared album, not just that the DB row exists). **Found and fixed one
-  real bug**: visiting `/album/<malformed-id>` (a stale bookmark, a typo,
-  a crawler probing paths) threw an unhandled 500 instead of a clean 404
-  — `getAlbumDetail` didn't catch Postgres' `22P02` (invalid uuid syntax)
-  error before rethrowing it. Fixed in `src/lib/albums/queries.ts`:
-  that specific error code is now treated as "not found," same as any
-  other non-existent album id. Reproduced and reverified live (500 → 404)
-  after the fix, not just by reading the code.
+  member → upload → edit → delete → restore — walked twice: once against
+  local dev (found and fixed the `22P02`/malformed-id 500 documented
+  below), and once again against the **live production deployment** with
+  two fresh throwaway accounts after the deploy was fixed, which is what
+  caught the broken-thumbnail bug above. Both passes used the invited
+  member's own account too, not just the owner's, to confirm sharing
+  actually works from the invitee's side.
+  - Local pass found: visiting `/album/<malformed-id>` (a stale
+    bookmark, a typo, a crawler probing paths) threw an unhandled 500
+    instead of a clean 404 — `getAlbumDetail` didn't catch Postgres'
+    `22P02` (invalid uuid syntax) error before rethrowing it. Fixed in
+    `src/lib/albums/queries.ts`.
 - [x] Update `README.md` with real setup steps (provider accounts, env
   vars) — full rewrite: prerequisites (Docker Desktop, Supabase CLI, the
   Windows/WSL2 quirk), local setup, an env var reference table, a
@@ -190,8 +208,9 @@ without horizontal overflow.
   the private `media` bucket that `db push` doesn't create and the
   `CRON_SECRET` requirement), and a real project structure section
   (mock-data references removed).
-- [ ] Push to `origin/main` on GitHub (pending explicit go-ahead — see
-  `CLAUDE.md`)
+- [x] Push to `origin/main` on GitHub — done, in three commits (M8
+  hardening/tests, M9 smoke-test fix + deploy docs, then the
+  image-host fix once deploying surfaced it).
 
 ## Milestone 10 — v1.1
 
