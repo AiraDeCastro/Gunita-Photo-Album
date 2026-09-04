@@ -10,11 +10,18 @@ const nextConfig: NextConfig = {
     remotePatterns: [
       {
         // Local Supabase Storage (supabase start) — signed media URLs.
-        // Add the deployed Supabase project's storage host here too once
-        // this ships somewhere other than this machine.
         protocol: "http",
         hostname: "127.0.0.1",
         port: "54321",
+        pathname: "/storage/v1/**",
+      },
+      {
+        // Any cloud Supabase project's Storage (<ref>.supabase.co) — signed
+        // media URLs. Wildcarded rather than pinned to one project ref so a
+        // staging project (or a future ref change) doesn't need a redeploy
+        // to fix broken thumbnails again.
+        protocol: "https",
+        hostname: "*.supabase.co",
         pathname: "/storage/v1/**",
       },
     ],
