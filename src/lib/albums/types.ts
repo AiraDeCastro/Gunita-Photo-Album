@@ -21,6 +21,8 @@ export type AlbumMember = {
 
 export type AlbumDetail = AlbumSummary & {
   members: AlbumMember[];
+  /** Raw id behind `cover` (a signed URL) — lets the UI mark which media tile is the current cover. */
+  coverMediaId: string | null;
 };
 
 export type DeletedAlbum = {

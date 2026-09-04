@@ -181,7 +181,7 @@ export async function getAlbumDetail(id: string): Promise<AlbumDetail | null> {
     .from("albums")
     .select(
       `
-      id, title, description, type, updated_at,
+      id, title, description, type, updated_at, cover_media_id,
       cover:media!albums_cover_media_id_fkey ( storage_path ),
       album_members ( role, profiles ( id, email ) )
     `,
@@ -219,6 +219,7 @@ export async function getAlbumDetail(id: string): Promise<AlbumDetail | null> {
     description: data.description,
     type: data.type,
     cover: await getSignedMediaUrl(data.cover?.storage_path ?? null),
+    coverMediaId: data.cover_media_id,
     previewUrls: [], // not used on the album detail page — the full grid is already the "preview"
     itemCount: itemCounts.get(id) ?? 0,
     role: mine.role,

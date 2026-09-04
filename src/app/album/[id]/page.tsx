@@ -58,7 +58,12 @@ export default async function AlbumPage({
           myUserId={user!.id}
         />
 
-        <MediaUploader albumId={album.id} canUpload={canEdit} media={media} />
+        <MediaUploader
+          albumId={album.id}
+          canUpload={canEdit}
+          media={media}
+          coverMediaId={album.coverMediaId}
+        />
 
         <p className="mt-8 text-sm text-text-faint">
           <Link href="/" className="text-accent hover:underline">

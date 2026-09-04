@@ -66,6 +66,41 @@ export async function updateAlbumDetails(
   return noError;
 }
 
+/**
+ * Only photos can be a cover — the album card/hero render it as an
+ * `<Image>`, and a video's `storage_path` points at the video file itself,
+ * not something Image can display. Verifying the media row actually
+ * belongs to this album (not just that *a* media row with this id exists
+ * somewhere) also guards against a same-album editor pointing the cover at
+ * media from an album they don't otherwise have access to; RLS wouldn't
+ * leak that media's contents either way (the embedded select in
+ * `getAlbumDetail` just comes back empty), but there's no reason to allow
+ * a nonsense cover reference in the first place.
+ */
+export async function setAlbumCover(albumId: string, mediaId: string) {
+  const supabase = await createClient();
+
+  const { data: media, error: mediaError } = await supabase
+    .from("media")
+    .select("kind")
+    .eq("id", mediaId)
+    .eq("album_id", albumId)
+    .is("deleted_at", null)
+    .maybeSingle();
+  if (mediaError) throw new Error(mediaError.message);
+  if (!media) throw new Error("That item isn't in this album.");
+  if (media.kind !== "photo") throw new Error("Only photos can be set as the cover.");
+
+  const { error } = await supabase
+    .from("albums")
+    .update({ cover_media_id: mediaId })
+    .eq("id", albumId);
+  if (error) throw new Error(error.message);
+
+  revalidatePath(`/album/${albumId}`);
+  revalidatePath("/");
+}
+
 export async function setAlbumType(albumId: string, type: "private" | "shared") {
   const supabase = await createClient();
   const { error } = await supabase

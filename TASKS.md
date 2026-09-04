@@ -38,12 +38,12 @@ initials instead of the old static "YOU"); sign-out → `/sign-in`; sign-in
 with correct/incorrect credentials (error renders in the new `--danger`
 token); every protected route redirects when signed out.
 
-## Milestone 3 — Albums, sharing & roles *(done except cover images)*
+## Milestone 3 — Albums, sharing & roles *(done)*
 
 - [x] Create album (title, description, private or shared) — `createAlbum`; starts private, `inviteMember` flips it to shared (PRD §3)
 - [x] List a user's albums (owned + member-of) to feed the browse rows — `getAlbumsForCurrentUser`, wired into `src/app/page.tsx`
 - [x] Autosave title/description edits — `AlbumSettingsForm`, saves on blur
-- [ ] Set/replace album cover — blocked on Milestone 4: there's no media yet to set as a cover, nothing to build here until upload exists
+- [x] Set/replace album cover — `setAlbumCover` (`src/lib/albums/actions.ts`); a "Set as cover" control on each photo tile in `MediaUploader`/`MediaTile`, gated to owner/admin/editor, restricted to photos (a video's `storage_path` isn't something `next/image` can render as a cover). Was blocked on Milestone 4 (no media to set as a cover existed yet); picked back up now that uploads are real. The first upload to an album still becomes its cover automatically (unchanged, from Milestone 4) — this adds the ability to change it afterward. Verified live: uploaded 3 photos, confirmed the first became cover automatically, set a different one via "Set as cover," confirmed the badge moved and the browse-home hero/card picked up the new cover on the next load.
 - [x] Delete album → soft delete (owner-only) — `deleteAlbum`; verified `deleted_at`/`purge_at` (+30d) set correctly, row not actually removed
 - [x] Invite a member by account email, assign a role — `inviteMember`; see note below on a real RLS bug this surfaced
 - [x] Change a member's role (owner/admin only) — `changeMemberRole`

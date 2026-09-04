@@ -5,6 +5,7 @@ import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import type { MediaItem } from "@/lib/media/types";
 import { deleteMedia } from "@/lib/media/actions";
+import { setAlbumCover } from "@/lib/albums/actions";
 import {
   PHOTO_MIME_TYPES,
   VIDEO_MIME_TYPES,
@@ -54,10 +55,12 @@ export default function MediaUploader({
   albumId,
   canUpload,
   media,
+  coverMediaId,
 }: {
   albumId: string;
   canUpload: boolean;
   media: MediaItem[];
+  coverMediaId: string | null;
 }) {
   const [tasks, setTasks] = useState<UploadTask[]>([]);
   const [dragging, setDragging] = useState(false);
@@ -207,6 +210,8 @@ export default function MediaUploader({
                 item={item}
                 albumId={albumId}
                 canDelete={canUpload}
+                canSetCover={canUpload}
+                isCover={item.id === coverMediaId}
                 onOpen={() => setOpenIndex(i)}
               />
             ))}
@@ -241,15 +246,20 @@ function MediaTile({
   item,
   albumId,
   canDelete,
+  canSetCover,
+  isCover,
   onOpen,
 }: {
   item: MediaItem;
   albumId: string;
   canDelete: boolean;
+  canSetCover: boolean;
+  isCover: boolean;
   onOpen: () => void;
 }) {
   const [confirming, setConfirming] = useState(false);
   const [pending, startTransition] = useTransition();
+  const [coverPending, startCoverTransition] = useTransition();
 
   return (
     <div className="group relative aspect-square overflow-hidden rounded-md bg-surface-sunken">
@@ -279,6 +289,22 @@ function MediaTile({
         <span className="absolute bottom-2 left-2 rounded-full bg-black/50 px-2 py-0.5 text-[10px] font-mono text-white">
           {formatDuration(item.durationSeconds)}
         </span>
+      )}
+      {isCover && (
+        <span className="pointer-events-none absolute bottom-2 left-2 rounded-full bg-accent px-2 py-0.5 text-[10px] font-mono uppercase tracking-wide text-accent-ink">
+          Cover
+        </span>
+      )}
+      {canSetCover && item.kind === "photo" && !isCover && (
+        <button
+          type="button"
+          disabled={coverPending}
+          onClick={() => startCoverTransition(() => setAlbumCover(albumId, item.id))}
+          aria-label="Set as album cover"
+          className="pointer-events-auto absolute bottom-2 left-2 z-10 rounded-full bg-black/50 px-2 py-0.5 text-[10px] text-white opacity-0 transition-opacity hover:bg-black/70 focus-visible:opacity-100 focus-visible:outline-2 focus-visible:outline-accent group-hover:opacity-100"
+        >
+          {coverPending ? "…" : "Set as cover"}
+        </button>
       )}
       {canDelete && (
         <div className="pointer-events-none absolute inset-0 flex items-start justify-end p-2 opacity-0 transition-opacity group-hover:opacity-100">

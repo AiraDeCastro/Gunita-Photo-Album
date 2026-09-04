@@ -180,6 +180,18 @@ Local endpoints once `supabase start` has been run:
     auth failure, not an HTML redirect to `/sign-in`. If a new route
     handler needs middleware-driven auth redirects, it needs a different
     mechanism than the shared proxy matcher.
+- **Album cover**: the first upload to an album becomes its cover
+  automatically (route handler, `src/app/api/media/upload/route.ts`), but
+  it's changeable afterward — `setAlbumCover` in `src/lib/albums/
+  actions.ts`, surfaced as a "Set as cover"/"Cover" control on each
+  `MediaTile` in `MediaUploader.tsx` (owner/admin/editor only, same
+  `canEdit` gate as everything else in that component). Only photos are
+  eligible — a video's `storage_path` points at the video file, not
+  something `next/image` can render — enforced both by hiding the control
+  for video tiles and by the action itself rejecting a non-photo id
+  server-side. Deleting the current cover photo clears `cover_media_id`
+  back to null (already existed in `deleteMedia`, `src/lib/media/
+  actions.ts`); nothing auto-picks a replacement.
 
 ### Deletion & recovery
 
