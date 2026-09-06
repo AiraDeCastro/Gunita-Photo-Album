@@ -1,13 +1,28 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { Suspense, useActionState, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { signIn, signUp, type AuthState } from "@/lib/auth/actions";
 
 const initialState: AuthState = { error: null };
 
 export default function SignInPage() {
-  const [mode, setMode] = useState<"sign-in" | "sign-up">("sign-in");
+  // useSearchParams needs a Suspense boundary even though this route has
+  // no other async data — without it, Next can't statically render the
+  // parts of the page that don't depend on the query string.
+  return (
+    <Suspense>
+      <SignInForm />
+    </Suspense>
+  );
+}
+
+function SignInForm() {
+  const searchParams = useSearchParams();
+  const [mode, setMode] = useState<"sign-in" | "sign-up">(
+    searchParams.get("mode") === "sign-up" ? "sign-up" : "sign-in",
+  );
   const [signInState, signInAction, signInPending] = useActionState(
     signIn,
     initialState,

@@ -18,25 +18,35 @@ export default async function Navbar() {
         Gunita
       </Link>
       <nav className="flex items-center gap-5 text-sm text-text-muted">
-        <Link href="/" className="hover:text-text transition-colors">
-          Browse
-        </Link>
-        <Link href="/recently-deleted" className="hover:text-text transition-colors">
-          Recently Deleted
-        </Link>
         {user ? (
-          <Link
-            href="/account"
-            className="h-8 w-8 rounded-full bg-accent text-accent-ink flex items-center justify-center text-xs font-mono"
-            aria-label="Account"
-            title={user.email}
-          >
-            {initials}
-          </Link>
+          <>
+            <Link href="/" className="hover:text-text transition-colors">
+              Browse
+            </Link>
+            <Link href="/recently-deleted" className="hover:text-text transition-colors">
+              Recently Deleted
+            </Link>
+            <Link
+              href="/account"
+              className="h-8 w-8 rounded-full bg-accent text-accent-ink flex items-center justify-center text-xs font-mono"
+              aria-label="Account"
+              title={user.email}
+            >
+              {initials}
+            </Link>
+          </>
         ) : (
-          <Link href="/sign-in" className="hover:text-text transition-colors">
-            Sign in
-          </Link>
+          <>
+            <Link href="/sign-in" className="hover:text-text transition-colors">
+              Sign in
+            </Link>
+            <Link
+              href="/sign-in?mode=sign-up"
+              className="rounded-md bg-accent px-4 py-1.5 text-accent-ink hover:opacity-90 transition-opacity"
+            >
+              Sign up
+            </Link>
+          </>
         )}
       </nav>
     </header>

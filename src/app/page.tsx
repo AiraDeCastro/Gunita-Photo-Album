@@ -1,10 +1,29 @@
 import Navbar from "@/components/Navbar";
 import Hero from "@/components/Hero";
+import Landing from "@/components/Landing";
 import AlbumRow from "@/components/AlbumRow";
 import CreateAlbumForm from "@/components/albums/CreateAlbumForm";
 import { getAlbumsForCurrentUser } from "@/lib/albums/queries";
+import { createClient } from "@/lib/supabase/server";
 
 export default async function BrowsePage() {
+  // "/" is a public route (src/lib/supabase/middleware.ts) precisely so a
+  // signed-out visitor lands here instead of /sign-in — this is the branch
+  // that decides which of the two very different pages they actually see.
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return (
+      <div className="flex-1">
+        <Navbar />
+        <Landing />
+      </div>
+    );
+  }
+
   const albums = await getAlbumsForCurrentUser();
 
   if (albums.length === 0) {

@@ -212,6 +212,27 @@ without horizontal overflow.
   hardening/tests, M9 smoke-test fix + deploy docs, then the
   image-host fix once deploying surfaced it).
 
+## Post-v1 additions
+
+Small items requested after v1 shipped that don't map to a PRD milestone.
+
+- [x] Public landing page for signed-out visitors — `/` used to redirect
+  straight to `/sign-in`; it's now a public route (`src/lib/supabase/
+  middleware.ts`) that branches in `src/app/page.tsx`: signed-out visitors
+  get `src/components/Landing.tsx` (hero + 4 feature blurbs pulled from
+  the PRD's goals, "Get started"/"Sign in" CTAs), signed-in users get the
+  existing browse home, unchanged. `Navbar` now hides the
+  authenticated-only Browse/Recently Deleted links when signed out and
+  shows Sign in/Sign up instead, so it works as the landing page's header
+  too rather than needing a second one. "Get started" deep-links to
+  `/sign-in?mode=sign-up`, which required wrapping the sign-in page's
+  `useSearchParams()` read in a `Suspense` boundary. Verified live: `/`
+  shows the landing page signed out with no redirect loop, `/sign-in`
+  with `?mode=sign-up` opens on the Sign up tab, a freshly signed-up
+  account lands on the real browse home at `/`, `/sign-in` redirects an
+  already-signed-in visitor to `/`, and other protected routes
+  (`/account`) still redirect signed-out visitors to `/sign-in` as before.
+
 ## Milestone 10 — v1.1
 
 - [ ] Stripe billing integration and paid storage tiers

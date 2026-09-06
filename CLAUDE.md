@@ -373,6 +373,18 @@ live URL**, not local dev, with fresh throwaway accounts.
   server actions, each server-validating email format + the 8-char password
   minimum before calling Supabase). The sign-in page (`src/app/sign-in/page.tsx`)
   drives them via `useActionState`, not a form POST to a route handler.
+  `?mode=sign-up` opens it straight on the Sign up tab (read via
+  `useSearchParams`, which is why the page's default export is just a
+  `Suspense` wrapper around the actual form component).
+- **`/` is a public route** (`PUBLIC_ROUTES` in `src/lib/supabase/
+  middleware.ts`), not gated like every other page. `src/app/page.tsx`
+  branches on `auth.getUser()` itself: signed-out visitors get
+  `src/components/Landing.tsx` (the marketing page), signed-in users get
+  the real browse home. If you add a new genuinely-public route, add it to
+  `PUBLIC_ROUTES` as an **exact path**, not a prefix — the middleware
+  matches `PUBLIC_ROUTES.includes(pathname)`, deliberately not
+  `startsWith`, because `"/"` as a prefix would match every route in the
+  app.
 
 ## Key decisions already locked in (don't re-litigate without asking)
 
