@@ -87,7 +87,7 @@ function SignInForm() {
             />
           </label>
           {isSignIn && (
-            <Link href="/" className="text-xs text-accent hover:underline self-end">
+            <Link href="/forgot-password" className="text-xs text-accent hover:underline self-end">
               Forgot password?
             </Link>
           )}

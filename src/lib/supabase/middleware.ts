@@ -4,8 +4,14 @@ import { NextResponse, type NextRequest } from "next/server";
 const AUTH_ROUTE = "/sign-in";
 // "/" is public so signed-out visitors land on the marketing landing page
 // instead of being bounced to /sign-in — src/app/page.tsx branches on auth
-// state itself to decide which one to actually render.
-const PUBLIC_ROUTES = ["/", AUTH_ROUTE];
+// state itself to decide which one to actually render. /forgot-password and
+// /reset-password have to be public too: a password-reset email link lands
+// the visitor on /reset-password with no session cookie yet (the recovery
+// tokens arrive in the URL hash, which never reaches the server — the
+// client-side Supabase client exchanges them for a session after the page
+// has already loaded), so gating that route would bounce them to /sign-in
+// before that exchange ever gets a chance to run.
+const PUBLIC_ROUTES = ["/", AUTH_ROUTE, "/forgot-password", "/reset-password"];
 
 /**
  * Refreshes the Supabase session cookie on every matched request, and

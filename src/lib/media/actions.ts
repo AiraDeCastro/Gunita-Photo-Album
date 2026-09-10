@@ -29,6 +29,29 @@ export async function deleteMedia(albumId: string, mediaId: string) {
   revalidatePath("/");
 }
 
+/**
+ * Persists a drag-to-reorder: `orderedMediaIds` is the full grid in its
+ * new visual order, and each item's `sort_order` becomes its index in
+ * that array — a clean 0..n-1 resequencing rather than nudging individual
+ * rows, so any gaps left by `sortOrder = min - 1` inserts (see the upload
+ * route) get reset too. Same "owner/admin/editor can edit media" RLS
+ * policy as every other media mutation; no new policy needed since it's
+ * just another column on an already-allowed UPDATE.
+ */
+export async function reorderMedia(albumId: string, orderedMediaIds: string[]) {
+  const supabase = await createClient();
+
+  const results = await Promise.all(
+    orderedMediaIds.map((mediaId, index) =>
+      supabase.from("media").update({ sort_order: index }).eq("id", mediaId).eq("album_id", albumId),
+    ),
+  );
+  const failed = results.find((result) => result.error);
+  if (failed?.error) throw new Error(failed.error.message);
+
+  revalidatePath(`/album/${albumId}`);
+}
+
 /** Same role check as delete — owner/admin/editor, via the "edit media" RLS policy. */
 export async function restoreMedia(albumId: string, mediaId: string) {
   const supabase = await createClient();

@@ -86,6 +86,20 @@ export async function POST(request: NextRequest) {
     }
   }
 
+  // New uploads slot in first (matching the pre-existing newest-first
+  // convention) — one less than the current minimum, rather than
+  // renumbering every other row in the album on every upload. A manual
+  // drag-reorder (reorderMedia, src/lib/media/actions.ts) resets the
+  // whole album to a clean 0..n-1 sequence, so this gap never compounds.
+  const { data: lowestSortOrder } = await supabase
+    .from("media")
+    .select("sort_order")
+    .eq("album_id", albumId)
+    .order("sort_order", { ascending: true })
+    .limit(1)
+    .maybeSingle();
+  const sortOrder = (lowestSortOrder?.sort_order ?? 0) - 1;
+
   const { error: insertError } = await supabase.from("media").insert({
     id: mediaId,
     album_id: albumId,
@@ -97,6 +111,7 @@ export async function POST(request: NextRequest) {
     width,
     height,
     duration_seconds: durationSeconds,
+    sort_order: sortOrder,
   });
 
   if (insertError) {

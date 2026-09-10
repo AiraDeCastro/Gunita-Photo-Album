@@ -14,7 +14,7 @@ export async function getAlbumMedia(albumId: string): Promise<MediaItem[]> {
     )
     .eq("album_id", albumId)
     .is("deleted_at", null)
-    .order("created_at", { ascending: false });
+    .order("sort_order", { ascending: true });
 
   if (error) throw error;
   const rows = data ?? [];
