@@ -50,6 +50,18 @@ below for the two deploy-only bugs that surfaced along the way — both are
 exactly the kind of thing that only shows up once real infrastructure is
 involved, not in local dev.
 
+Milestone 10 (v1.1) is done: the public landing page, set/replace album
+cover, password reset, search across albums, year-based browse-home rows,
+drag-to-reorder media, and Stripe billing with paid-plan video ceilings
+are all real now (see "Browse experience", "Media & storage", "Password
+reset", and "Billing" below for each). Billing has been verified live
+against real Stripe test-mode objects — a real Checkout, a real webhook
+payload replayed against the local server, a real Customer Portal
+cancellation — not just the automated webhook tests. What's not done yet
+is deploying it: the Stripe env vars and a production webhook endpoint
+still need setting up in Vercel/Stripe's dashboards, the same shape of
+work as Milestone 9's post-code deploy step.
+
 ## Local backend (Supabase via Docker)
 
 Postgres + Auth + Storage run locally through the Supabase CLI in Docker
@@ -222,6 +234,108 @@ Local endpoints once `supabase start` has been run:
   testing — but it's a hard requirement in production, or the endpoint has
   no auth at all.
 
+### Password reset
+
+- The reset link's session doesn't arrive as a query param — Supabase's
+  hosted `/auth/v1/verify` endpoint redirects to `redirectTo` with the
+  recovery tokens in the URL **hash** (`#access_token=...`), which never
+  reaches the server. `/reset-password` (`src/app/reset-password/
+  page.tsx`) is a Client Component specifically so it can instantiate the
+  Supabase browser client, whose `detectSessionInUrl` (on by default)
+  picks the hash up, exchanges it for a session, and — because that
+  client is the `@supabase/ssr` one, not vanilla `supabase-js` — also
+  writes that session into cookies the server can see. `getSession()` is
+  safe to call immediately on mount; it internally awaits that exchange
+  rather than racing it.
+- `/forgot-password` and `/reset-password` both had to be added to
+  `PUBLIC_ROUTES` in `src/lib/supabase/middleware.ts` — without that,
+  middleware would bounce a signed-out visitor away from `/reset-password`
+  to `/sign-in` before the hash-exchange above ever got a chance to run,
+  since the *first* request for that page genuinely has no session yet.
+- `supabase/config.toml`'s `additional_redirect_urls` had to change from
+  bare origins (`"http://localhost:3000"`) to wildcards
+  (`"http://localhost:3000/**"`) — Supabase validates `redirectTo` as an
+  exact match against this list, and `/reset-password` is a sub-path, not
+  the bare origin. This needs pushing to the linked cloud project (`supabase
+  config push`) too, not just applying locally, or the production reset
+  link will fail with a "redirect_to not allowed" error that the bare-origin
+  local config won't reproduce.
+- `requestPasswordReset` (`src/lib/auth/actions.ts`) always reports success
+  regardless of whether the email actually belongs to an account —
+  Supabase itself never reveals that for this endpoint, and echoing a
+  distinction back to the caller would let the form be used to enumerate
+  registered emails. A real error from it means something like rate
+  limiting, not "no such user."
+- `updatePassword` is shared by both `/reset-password` (a recovery
+  session) and the Account page's `ChangePasswordForm` (a normal signed-in
+  session) — it just needs *a* valid session via `createClient()`'s
+  cookies, and doesn't care which kind it is.
+
+### Billing
+
+- **Hosted Stripe Checkout, not embedded Elements**: `createCheckoutSession`
+  (`src/lib/billing/actions.ts`) creates a Checkout Session and redirects
+  to Stripe's own page — no client-side Stripe.js anywhere in this app,
+  no PCI scope to worry about. `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` exists
+  in `.env.local` but nothing currently reads it; keep it that way unless
+  a future feature genuinely needs Stripe.js in the browser.
+- **The webhook (`src/app/api/stripe/webhook/route.ts`) is the only thing
+  that writes `profiles.plan`** — never a click in this app. It reads the
+  **raw** request body (`request.text()`, not `.json()`) because Stripe
+  signs the exact bytes it sent; re-serializing a parsed object would
+  almost never byte-for-byte match and signature verification would fail.
+  Uses the admin client for the same reason as the purge job: Stripe
+  calls this with no user session at all, which is exactly what RLS is
+  supposed to block for a normal request.
+- **A dormant RLS gap got closed while adding this, not because of
+  anything Stripe-specific**: `add_stripe_billing_fields` drops "users
+  can update their own profile" entirely. No app code has ever performed
+  a client-authenticated `UPDATE` on `profiles` — only reads, plus the
+  admin-client email lookup for invites — so that policy was a live but
+  unused hole: anyone could already set their own `plan` to `'paid'`
+  directly via the REST API with their own JWT. Harmless while `plan` did
+  nothing; not harmless once it gates real storage/video limits. If a
+  genuine self-service profile edit is ever added, it needs its own
+  narrow policy — don't restore the old blanket one.
+- **First upgrade vs. later upgrade**: `createCheckoutSession` doesn't
+  create a Stripe Customer itself. On a first upgrade there's no
+  `stripe_customer_id` yet, so `customer_email` lets Checkout create one
+  and `client_reference_id: user.id` is how `checkout.session.completed`
+  finds its way back to the right profile to save that new customer id.
+  On a later upgrade (e.g. after a cancel-then-resubscribe) the saved
+  customer id is reused instead. Once a customer id exists, subsequent
+  `customer.subscription.*` events are matched by `stripe_customer_id`
+  directly — they don't carry checkout-session metadata at all.
+- **Verifying locally without the Stripe CLI**: this machine has no
+  `stripe` CLI binary (only the `stripe` npm package), so there's no
+  `stripe listen` to forward real webhook deliveries to localhost.
+  `tests/integration/stripe-webhook.test.ts` signs its own synthetic
+  events with `Stripe.webhooks.generateTestHeaderString()` — a real SDK
+  helper, no network call to Stripe involved — using whatever
+  `STRIPE_WEBHOOK_SECRET` is in `.env.local` (a local-only placeholder
+  value is fine; it just needs to match between signer and verifier). For
+  a stronger check than synthetic ids, a real Checkout was also completed
+  once by hand and its *actual* `customer`/`subscription` ids were
+  replayed through the same signing helper against the local server —
+  same technique, real Stripe-issued ids instead of made-up ones.
+- **Video ceilings are plan-gated in two places, not one**: the upload
+  route (`src/app/api/media/upload/route.ts`) looks up the uploader's
+  `profiles.plan` server-side (the real enforcement), and `MediaUploader`
+  takes a `userPlan` prop so the client-side pre-upload check
+  (`validateVideoMetadata`'s new optional `maxDurationSeconds` param,
+  `src/lib/media/constraints.ts`) shows the right limit before spending
+  upload time. It's always the *uploader's* plan, never the album
+  owner's — matches `getStorageUsageBytes` already attributing usage to
+  the uploader, not the album.
+- **Per-file byte cap doesn't scale with plan**: `MAX_VIDEO_BYTES` stays
+  45MB for paid accounts too — that number comes from the connected
+  Supabase project's own free-tier Storage ceiling (Milestone 9), not
+  from this app, and raising it for Gunita's paid tier wouldn't survive
+  contact with Storage until that project is separately upgraded. See
+  `src/lib/stripe/plans.ts` for the paid-tier constants and this caveat
+  spelled out where someone's likely to look when the numbers stop
+  matching intuition (a 10-minute 1080p video is often well over 45MB).
+
 ### Browse experience
 
 - "Recently active" (the hero, and the default album order) is computed in
@@ -246,6 +360,45 @@ Local endpoints once `supabase start` has been run:
   land on the media container's own (no-op) click handler instead of
   Prev/Next. Caught by actually clicking Next in the browser and watching
   the index not change, not by code review.
+- **Search and year-based rows** (Milestone 10) live in
+  `src/components/BrowseHome.tsx`, a Client Component `src/app/page.tsx`
+  delegates to once it's fetched the data — search is a client-side
+  substring filter over the already-fetched album list (title +
+  description), not a new query, since it's one account's own albums, not
+  a cross-account index; revisit if that scale assumption ever stops
+  holding. Typing a query hides the hero/rows entirely in favor of a
+  flat results grid; clearing it restores the normal view. Year rows
+  replace the old unbounded "All albums" row, grouped by the same
+  activity-date (`updatedAt`) that already drives the hero pick, newest
+  year first — computed in `src/app/page.tsx` alongside the existing
+  "Recently added"/"Shared" row logic.
+- **Drag-to-reorder** (Milestone 10): `media.sort_order` (ascending =
+  display order, `add_media_sort_order` migration) is the persisted
+  order; `getAlbumMedia` orders by it instead of `created_at`. New
+  uploads get `min(sort_order) - 1` (src/app/api/media/upload/route.ts)
+  so they keep appearing first without renumbering the whole album on
+  every upload — a manual reorder (`reorderMedia`,
+  `src/lib/media/actions.ts`) resets the whole album to a clean
+  `0..n-1` sequence anyway, so that gap never compounds. The drag itself
+  is native HTML5 drag-and-drop on each `MediaTile`
+  (`src/components/albums/MediaUploader.tsx`), not a library — set
+  `draggable={false}` on the inner `next/image` specifically, since an
+  `<img>` is natively draggable by default and will otherwise hijack the
+  gesture from the tile's own `draggable` div. No keyboard-accessible
+  alternative to dragging exists yet — a real gap, not an oversight to
+  repeat elsewhere without noticing.
+  - **Testing native HTML5 DnD**: `left_click_drag` (synthetic mouse
+    events) does **not** trigger it — `dragstart`/`dragover`/`drop` need
+    the browser's real drag gesture. Verify instead by dispatching actual
+    `DragEvent`s via `javascript_tool`, but with a real `await sleep(...)`
+    between each one: firing `dragstart` immediately followed by `drop`
+    in the same synchronous script never gives React a chance to commit
+    the `dragstart` handler's `setState` before the `drop` handler's
+    closure reads it, so `drop` sees a stale `null` "what's being
+    dragged" and silently no-ops. This isn't a bug in the app — it's
+    exactly the same reason a *real* drag works fine (the user's mouse
+    movement naturally spans multiple render cycles) and a same-tick
+    synthetic one doesn't.
 
 ### Non-functional hardening
 
@@ -448,6 +601,16 @@ no other test runner is in play. Two kinds of tests live in `tests/`:
     asserting `error).not.toBeNull()` on the wrong kind of denial will
     fail confusingly; see the comments in `role-matrix.test.ts` for which
     is which and why, if writing a new one.
+  - `stripe-webhook.test.ts` needs `npm run dev` running too, not just
+    `supabase start` — it POSTs signed synthetic events at a real running
+    route (`isDevServerReachable()` in the test helpers), since signature
+    verification against an actual HTTP request is exactly the kind of
+    thing that can look right calling the handler function directly and
+    still fail for real (wrong header casing, body already consumed,
+    etc). If `npm run dev` is on a non-default port, set `TEST_APP_URL`
+    (e.g. `TEST_APP_URL=http://localhost:3001 npm test`) rather than
+    editing the test — this came up for real when another local session
+    already held port 3000.
 
 ## Open questions
 
@@ -469,3 +632,13 @@ supabase start   # start the local Postgres/Auth/Storage containers
 supabase stop    # stop them
 supabase status  # print URLs/keys again (also written to .env.local)
 ```
+
+<!-- BEGIN:nextjs-agent-rules -->
+
+# This is NOT the Next.js you know
+
+This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
+
+This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
+
+<!-- END:nextjs-agent-rules -->

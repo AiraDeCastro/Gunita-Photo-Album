@@ -11,18 +11,22 @@ decisions if you're working on this codebase.
 
 ## Status
 
-**v1 shipped**: live in production on Vercel, connected to a cloud
-Supabase project. Auth, private/shared albums with Owner/Admin/Editor/
-Viewer roles, photo & video upload, a real 15 GB/account storage cap, a
-30-day Recently Deleted window, and the full browse experience (hero,
-hover-preview rows, lightbox) are all implemented against a real Supabase
-backend — nothing runs on mock data. Automated tests cover the pure
-validation/quota logic and the role-permission matrix against real Row
-Level Security policies, and the full golden path (sign up → shared album
-→ invite → upload → edit → delete → restore) has been verified against
-the live deployment itself, not just locally. See `CLAUDE.md`'s "Deploying
-to production" section for a few deploy-specific gotchas worth knowing
-before touching infra config.
+**v1 shipped, v1.1 feature-complete**: live in production on Vercel,
+connected to a cloud Supabase project. Auth, private/shared albums with
+Owner/Admin/Editor/Viewer roles, photo & video upload, a real 15 GB/account
+storage cap, a 30-day Recently Deleted window, and the full browse
+experience (hero, hover-preview rows, lightbox, search, year-based rows)
+are all implemented against a real Supabase backend — nothing runs on mock
+data. Password reset, drag-to-reorder media, and Stripe billing (a real
+$5/mo paid plan — 100GB storage, 10-minute videos) are done too. Automated
+tests cover the pure validation/quota logic, the role-permission matrix
+against real Row Level Security policies, and the Stripe webhook against a
+real running server, and the full golden path (sign up → shared album →
+invite → upload → edit → delete → restore) has been verified against the
+live deployment itself, not just locally. See `CLAUDE.md`'s "Deploying to
+production" and "Billing" sections for deploy-specific gotchas worth
+knowing before touching infra config — billing in particular still needs
+its production webhook/env vars set up (see "Deploying" below).
 
 ## Stack
 
@@ -66,6 +70,10 @@ cp .env.example .env.local
 | `SUPABASE_SECRET_KEY` | `supabase start` output, "service_role key" — **server-only, never expose to the client** |
 | `DATABASE_URL` | `supabase start` output, direct Postgres connection string |
 | `CRON_SECRET` | Leave unset locally. Required in production — see "Deploying" below. |
+| `STRIPE_SECRET_KEY` | [dashboard.stripe.com/test/apikeys](https://dashboard.stripe.com/test/apikeys) — test mode, server-only |
+| `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` | Same page as above |
+| `STRIPE_PRICE_ID` | The paid-plan Price id from your Stripe Products catalog (test mode) |
+| `STRIPE_WEBHOOK_SECRET` | Any string works locally (see `.env.local`'s comment and `CLAUDE.md`'s "Billing" section) — production needs the real value from a registered webhook endpoint |
 
 Then:
 
@@ -120,6 +128,17 @@ deploy needs a **cloud** Supabase project instead.
      without it (see `CLAUDE.md`'s "Deletion & recovery" section)
 4. Deploy. Vercel Cron picks up the daily purge schedule from
    `vercel.json` automatically once the project is live.
+5. **Stripe billing**: set `STRIPE_SECRET_KEY`, `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY`,
+   and `STRIPE_PRICE_ID` in Vercel from your Stripe dashboard (switch to
+   **live mode** keys/price when you're actually ready to charge people —
+   test mode until then). Then register a webhook endpoint in the Stripe
+   dashboard (Developers → Webhooks) pointed at
+   `https://<your-domain>/api/stripe/webhook`, subscribed to
+   `checkout.session.completed`, `customer.subscription.updated`, and
+   `customer.subscription.deleted` — Stripe gives you a signing secret at
+   that point; set it as `STRIPE_WEBHOOK_SECRET` in Vercel. The local
+   placeholder value in `.env.local` only works for the local synthetic
+   webhook tests, not a real deployed endpoint.
 
 ## Project structure
 
@@ -133,10 +152,12 @@ src/
     recently-deleted/           30-day deletion grace-window list
     api/media/upload/           upload route handler (large-body, bypasses proxy)
     api/cron/purge/             scheduled hard-purge job
+    api/stripe/webhook/         Stripe billing webhook (plan sync)
   components/                   Navbar, Hero, AlbumRow, AlbumCard, Lightbox, ...
   lib/
     supabase/                   browser/server/admin clients + generated DB types
     albums/, media/, storage/   queries, mutations, and shared types per domain
+    stripe/, billing/           Stripe client + plan constants, checkout/portal actions
 tests/
   unit/                         pure-function tests (always run)
   integration/                  real-RLS tests against local Supabase

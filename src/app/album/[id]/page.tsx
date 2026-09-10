@@ -27,6 +27,12 @@ export default async function AlbumPage({
   const canEdit = CAN_EDIT.includes(album.role);
   const media = await getAlbumMedia(album.id);
 
+  // The *uploader's* plan gates their own video-length ceiling, even in a
+  // shared album — storage/limits are always attributed to whoever's
+  // actually uploading, never the album owner (see quota.ts).
+  const { data: profile } = await supabase.from("profiles").select("plan").eq("id", user!.id).single();
+  const userPlan = profile?.plan ?? "free";
+
   return (
     <div className="flex-1">
       <Navbar />
@@ -63,6 +69,7 @@ export default async function AlbumPage({
           canUpload={canEdit}
           media={media}
           coverMediaId={album.coverMediaId}
+          userPlan={userPlan}
         />
 
         <p className="mt-8 text-sm text-text-faint">

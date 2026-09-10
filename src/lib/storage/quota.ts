@@ -1,8 +1,14 @@
 import { createClient } from "@/lib/supabase/server";
+import { PAID_TIER_BYTES } from "@/lib/stripe/plans";
+import type { Database } from "@/lib/supabase/types";
 
 // Decimal GB (10^9 bytes) — matches how storage quotas are conventionally
 // advertised (Google, Dropbox, etc.), not binary GiB. docs/PRD.md §6.
 export const FREE_TIER_BYTES = 15_000_000_000;
+
+export function tierBytesForPlan(plan: Database["public"]["Enums"]["plan_tier"]): number {
+  return plan === "paid" ? PAID_TIER_BYTES : FREE_TIER_BYTES;
+}
 
 /**
  * Total bytes attributed to one account — every file counts against its

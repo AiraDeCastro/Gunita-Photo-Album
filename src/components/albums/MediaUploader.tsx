@@ -1,17 +1,19 @@
 "use client";
 
 import Image from "next/image";
-import { useRef, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import type { MediaItem } from "@/lib/media/types";
-import { deleteMedia } from "@/lib/media/actions";
+import { deleteMedia, reorderMedia } from "@/lib/media/actions";
 import { setAlbumCover } from "@/lib/albums/actions";
 import {
+  MAX_VIDEO_DURATION_SECONDS,
   PHOTO_MIME_TYPES,
   VIDEO_MIME_TYPES,
   validateFile,
   validateVideoMetadata,
 } from "@/lib/media/constraints";
+import { PAID_MAX_VIDEO_DURATION_SECONDS } from "@/lib/stripe/plans";
 import { readPhotoMetadata, readVideoMetadata } from "@/lib/media/client-thumbnails";
 import Lightbox from "./Lightbox";
 
@@ -56,17 +58,38 @@ export default function MediaUploader({
   canUpload,
   media,
   coverMediaId,
+  userPlan,
 }: {
   albumId: string;
   canUpload: boolean;
   media: MediaItem[];
   coverMediaId: string | null;
+  userPlan: "free" | "paid";
 }) {
+  const maxVideoDurationSeconds =
+    userPlan === "paid" ? PAID_MAX_VIDEO_DURATION_SECONDS : MAX_VIDEO_DURATION_SECONDS;
   const [tasks, setTasks] = useState<UploadTask[]>([]);
   const [dragging, setDragging] = useState(false);
   const [openIndex, setOpenIndex] = useState<number | null>(null);
+  const [items, setItems] = useState(media);
+  const [dragItemIndex, setDragItemIndex] = useState<number | null>(null);
+  const [dropTargetIndex, setDropTargetIndex] = useState<number | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const router = useRouter();
+
+  // Resyncs after an upload/delete/router.refresh() brings a fresh `media`
+  // prop — `items` only exists so a drag-reorder can update the grid
+  // immediately instead of waiting on a round trip.
+  useEffect(() => setItems(media), [media]);
+
+  function handleReorderDrop(targetIndex: number) {
+    if (dragItemIndex === null || dragItemIndex === targetIndex) return;
+    const next = [...items];
+    const [moved] = next.splice(dragItemIndex, 1);
+    next.splice(targetIndex, 0, moved);
+    setItems(next);
+    void reorderMedia(albumId, next.map((item) => item.id));
+  }
 
   async function uploadOne(file: File) {
     const key = crypto.randomUUID();
@@ -91,7 +114,12 @@ export default function MediaUploader({
     try {
       if (isVideo) {
         const meta = await readVideoMetadata(file);
-        const videoError = validateVideoMetadata(meta.durationSeconds, meta.width, meta.height);
+        const videoError = validateVideoMetadata(
+          meta.durationSeconds,
+          meta.width,
+          meta.height,
+          maxVideoDurationSeconds,
+        );
         if (videoError) {
           setTasks((prev) =>
             prev.map((t) => (t.key === key ? { ...t, status: "error", error: videoError.error } : t)),
@@ -178,8 +206,14 @@ export default function MediaUploader({
         onDragOver={
           canUpload
             ? (e) => {
-                e.preventDefault();
-                setDragging(true);
+                // Only the OS file-drag case highlights the drop zone —
+                // an in-grid reorder drag also bubbles a dragover up here,
+                // but it carries no "Files" type and is handled by the
+                // individual MediaTile being hovered instead.
+                if (e.dataTransfer.types.includes("Files")) {
+                  e.preventDefault();
+                  setDragging(true);
+                }
               }
             : undefined
         }
@@ -187,9 +221,11 @@ export default function MediaUploader({
         onDrop={
           canUpload
             ? (e) => {
-                e.preventDefault();
-                setDragging(false);
-                handleFiles(e.dataTransfer.files);
+                if (e.dataTransfer.types.includes("Files")) {
+                  e.preventDefault();
+                  setDragging(false);
+                  handleFiles(e.dataTransfer.files);
+                }
               }
             : undefined
         }
@@ -204,15 +240,24 @@ export default function MediaUploader({
           </div>
         ) : (
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
-            {media.map((item, i) => (
+            {items.map((item, i) => (
               <MediaTile
                 key={item.id}
                 item={item}
                 albumId={albumId}
                 canDelete={canUpload}
                 canSetCover={canUpload}
+                canReorder={canUpload}
                 isCover={item.id === coverMediaId}
+                isDropTarget={dropTargetIndex === i && dragItemIndex !== i}
                 onOpen={() => setOpenIndex(i)}
+                onDragStart={() => setDragItemIndex(i)}
+                onDragEnter={() => setDropTargetIndex(i)}
+                onDragEndReorder={() => {
+                  setDragItemIndex(null);
+                  setDropTargetIndex(null);
+                }}
+                onDropReorder={() => handleReorderDrop(i)}
               />
             ))}
             {tasks.map((task) => (
@@ -232,7 +277,7 @@ export default function MediaUploader({
 
       {openIndex !== null && (
         <Lightbox
-          media={media}
+          media={items}
           index={openIndex}
           onClose={() => setOpenIndex(null)}
           onNavigate={setOpenIndex}
@@ -247,22 +292,52 @@ function MediaTile({
   albumId,
   canDelete,
   canSetCover,
+  canReorder,
   isCover,
+  isDropTarget,
   onOpen,
+  onDragStart,
+  onDragEnter,
+  onDragEndReorder,
+  onDropReorder,
 }: {
   item: MediaItem;
   albumId: string;
   canDelete: boolean;
   canSetCover: boolean;
+  canReorder: boolean;
   isCover: boolean;
+  isDropTarget: boolean;
   onOpen: () => void;
+  onDragStart: () => void;
+  onDragEnter: () => void;
+  onDragEndReorder: () => void;
+  onDropReorder: () => void;
 }) {
   const [confirming, setConfirming] = useState(false);
   const [pending, startTransition] = useTransition();
   const [coverPending, startCoverTransition] = useTransition();
 
   return (
-    <div className="group relative aspect-square overflow-hidden rounded-md bg-surface-sunken">
+    <div
+      draggable={canReorder}
+      onDragStart={canReorder ? onDragStart : undefined}
+      onDragEnter={canReorder ? onDragEnter : undefined}
+      onDragOver={canReorder ? (e) => e.preventDefault() : undefined}
+      onDrop={
+        canReorder
+          ? (e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              onDropReorder();
+            }
+          : undefined
+      }
+      onDragEnd={canReorder ? onDragEndReorder : undefined}
+      className={`group relative aspect-square overflow-hidden rounded-md bg-surface-sunken transition-shadow ${
+        canReorder ? "cursor-grab active:cursor-grabbing" : ""
+      } ${isDropTarget ? "ring-2 ring-accent" : ""}`}
+    >
       <button
         type="button"
         onClick={onOpen}
@@ -276,6 +351,7 @@ function MediaTile({
             fill
             sizes="200px"
             className="object-cover"
+            draggable={false}
           />
         ) : (
           <div className="flex h-full w-full items-center justify-center">

@@ -233,14 +233,120 @@ Small items requested after v1 shipped that don't map to a PRD milestone.
   already-signed-in visitor to `/`, and other protected routes
   (`/account`) still redirect signed-out visitors to `/sign-in` as before.
 
-## Milestone 10 — v1.1
+## Milestone 10 — v1.1 *(done, except pushing prod webhook/env config)*
 
-- [ ] Stripe billing integration and paid storage tiers
-- [ ] Higher video resolution/length ceilings for paid accounts
-- [ ] Password reset flow
-- [ ] Drag-to-reorder media within an album
-- [ ] Search across albums
-- [ ] Year-based rows on the browse home
+- [x] Stripe billing integration and paid storage tiers — test-mode
+  account created (same one-time human step as Vercel/Supabase in
+  Milestone 9), $5/mo Price created via the Stripe SDK. Checkout is a
+  **hosted** Stripe Checkout redirect (`createCheckoutSession`,
+  `src/lib/billing/actions.ts`), not embedded Elements — no client-side
+  Stripe.js, no PCI scope for this app. `src/app/api/stripe/webhook/
+  route.ts` verifies the signature against the raw request body and
+  syncs `profiles.plan`/`stripe_customer_id`/`stripe_subscription_id` on
+  `checkout.session.completed` and `customer.subscription.updated`/
+  `deleted`, using the admin client (same reasoning as the purge job —
+  Stripe calls this with no user session at all). "Manage billing"
+  (`createBillingPortalSession`) opens Stripe's hosted Customer Portal
+  for cancellation/payment-method changes. A real, previously-dormant
+  RLS gap got closed along the way: `add_stripe_billing_fields` drops
+  "users can update their own profile" entirely, since nothing in the
+  app has ever legitimately updated a profile through the RLS-respecting
+  client — before this, anyone could set their own `plan` to `'paid'`
+  directly via the REST API with their own JWT, harmless only because
+  `plan` didn't gate anything real yet. Verified live end-to-end,
+  including with real Stripe objects, not just synthetic test data: real
+  Checkout → real webhook payload replayed locally (Stripe can't reach a
+  local dev server, so this used the actual completed session's real
+  `customer`/`subscription` ids, not placeholders) → Account page showed
+  Paid plan/100GB → opened the real Customer Portal → canceled via the
+  Stripe API → replayed the real `customer.subscription.deleted` event →
+  Account page correctly fell back to Free plan/15GB. Also covered by
+  `tests/integration/stripe-webhook.test.ts` (invalid signature
+  rejected, `checkout.session.completed` sets plan=paid, subscription
+  deletion sets it back) — these need `npm run dev` up, not just
+  `supabase start`, and skip themselves if it isn't.
+- [x] Higher video resolution/length ceilings for paid accounts —
+  resolution stays 1080p for both tiers (that was already the v1 spec,
+  not something paying raises); duration goes from 5 to 10 minutes
+  (`PAID_MAX_VIDEO_DURATION_SECONDS`, `src/lib/stripe/plans.ts`), checked
+  both client-side (`MediaUploader` now takes a `userPlan` prop) and
+  server-side (the upload route looks up the uploader's `profiles.plan`
+  before validating). The per-file **byte** cap deliberately stays 45MB
+  for both tiers — that ceiling comes from the connected Supabase
+  project's own free-tier Storage limit (see Milestone 9), not from
+  anything this app enforces, and raising it for paid Gunita accounts
+  wouldn't do anything until the Supabase project itself is also
+  upgraded. Worth knowing: a real 10-minute 1080p video will often
+  exceed 45MB depending on bitrate, so the paid duration ceiling is
+  genuinely useful mainly for well-compressed footage until that
+  Supabase upgrade happens — flagged in `src/lib/stripe/plans.ts` rather
+  than silently shipped as if the two ceilings were independent.
+
+**Not yet done** — infra config that only matters once this deploys,
+same shape as Milestone 9's Vercel/Supabase env var dance: the Stripe
+test keys, price id, and a **production** webhook secret (from a real
+webhook endpoint registered against the live Vercel URL, not the
+local-only placeholder in `.env.local`) still need to go into Vercel's
+environment variables, and a webhook endpoint needs registering in the
+Stripe dashboard pointed at `https://gunita-photo-album.vercel.app/api/
+stripe/webhook`. Flagging this explicitly rather than assuming "the code
+is done" means "it works in production" — Milestone 9 already taught
+that lesson once.
+- [x] Password reset flow — `/forgot-password` (request a reset email,
+  `requestPasswordReset` action) and `/reset-password` (set the new
+  password, `updatePassword` action) in `src/lib/auth/actions.ts`. Both
+  routes had to be added to `PUBLIC_ROUTES` in `src/lib/supabase/
+  middleware.ts` — the recovery link's session tokens arrive in the URL
+  hash, which never reaches the server, so gating `/reset-password` would
+  bounce the visitor to `/sign-in` before the client-side Supabase client
+  ever got a chance to exchange them for a session. Also required
+  widening `supabase/config.toml`'s `additional_redirect_urls` from bare
+  origins to `/**` wildcards, since Supabase rejects a `redirectTo` that
+  isn't an exact match against that list and `/reset-password` is a
+  sub-path. `requestPasswordReset` always reports success regardless of
+  whether the email exists, matching Supabase's own privacy-preserving
+  behavior (never leak which emails are registered). Also wired up the
+  Account page's previously-inert "Change password" button
+  (`src/components/account/ChangePasswordForm.tsx`) to the same
+  `updatePassword` action, for an already-signed-in user who isn't going
+  through the email flow. Verified live end-to-end: requested a reset,
+  found the real email in Mailpit, followed its link, landed on
+  `/reset-password` already signed in via the recovery session, set a
+  new password, and signed in with it afterward; also verified
+  `/reset-password` visited directly with no recovery session shows
+  "This link is invalid or has expired" rather than a broken form; and
+  verified the Account page's inline change-password form separately.
+- [x] Drag-to-reorder media within an album — a new `sort_order` column
+  on `media` (`add_media_sort_order` migration, backfilled to match the
+  existing newest-first display order so applying it didn't reshuffle
+  anything), native HTML5 drag-and-drop on each `MediaTile`
+  (`src/components/albums/MediaUploader.tsx`) with optimistic local
+  reordering, persisted via a new `reorderMedia` action
+  (`src/lib/media/actions.ts`) that renumbers the whole album to a clean
+  `0..n-1` sequence — no new RLS policy needed, it's just another column
+  under the existing "owner/admin/editor can edit media" policy. New
+  uploads slot in at `min(sort_order) - 1` rather than renumbering
+  everything on every upload. No keyboard-accessible alternative to
+  dragging yet — a real gap for anyone who can't use a mouse, flagged
+  here rather than silently shipped as if it were fully accessible.
+  Verified live: reordered a 3-photo album by simulating real
+  `DragEvent`s with pauses between them (a same-tick synthetic
+  dragstart→drop sequence doesn't work — React never gets a chance to
+  commit the dragstart's state update before drop reads it, so the drop
+  handler sees a stale `null` and no-ops), confirmed the new order
+  persisted after a full page reload.
+- [x] Search across albums — a client-side substring filter
+  (`src/components/BrowseHome.tsx`) over the already-fetched album list
+  (title + description), no new query — fine at "one account's own
+  albums" scale. Typing hides the hero/rows in favor of a results grid;
+  clearing the query restores the normal browse view. Verified live:
+  matching query, no-match query (correct empty state), and clearing
+  back to the normal view.
+- [x] Year-based rows on the browse home — replaces the old unbounded
+  "All albums" row with one row per year (newest first), grouped by the
+  same activity-date (`updatedAt`) that already drives the hero pick and
+  sort order — `src/app/page.tsx`. Verified live via `get_page_text`
+  (a "2026" row appears with the test album in it).
 
 ## Milestone 11 — v2
 

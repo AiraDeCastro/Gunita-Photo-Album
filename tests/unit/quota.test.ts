@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { FREE_TIER_BYTES, formatBytes, wouldExceedQuota } from "@/lib/storage/quota";
+import { FREE_TIER_BYTES, formatBytes, tierBytesForPlan, wouldExceedQuota } from "@/lib/storage/quota";
+import { PAID_TIER_BYTES } from "@/lib/stripe/plans";
 
 describe("wouldExceedQuota", () => {
   it("allows an upload that lands exactly on the limit", () => {
@@ -19,6 +20,16 @@ describe("wouldExceedQuota", () => {
   it("respects a custom limit, for callers that don't use the free tier default", () => {
     expect(wouldExceedQuota(50, 50, 100)).toBe(false);
     expect(wouldExceedQuota(51, 50, 100)).toBe(true);
+  });
+});
+
+describe("tierBytesForPlan", () => {
+  it("gives free accounts the free-tier limit", () => {
+    expect(tierBytesForPlan("free")).toBe(FREE_TIER_BYTES);
+  });
+
+  it("gives paid accounts the paid-tier limit", () => {
+    expect(tierBytesForPlan("paid")).toBe(PAID_TIER_BYTES);
   });
 });
 

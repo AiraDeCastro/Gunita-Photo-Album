@@ -65,3 +65,16 @@ export async function isSupabaseReachable(): Promise<boolean> {
     return false;
   }
 }
+
+/** Overridable for a one-off `npm run dev` on a non-default port (e.g. 3000 already taken locally); defaults to the usual dev server URL. */
+export const DEV_SERVER_URL = process.env.TEST_APP_URL ?? "http://localhost:3000";
+
+/** True if `npm run dev` is up at DEV_SERVER_URL — needed for tests that hit a Route Handler directly (e.g. the Stripe webhook), not just the DB. */
+export async function isDevServerReachable(): Promise<boolean> {
+  try {
+    const res = await fetch(`${DEV_SERVER_URL}/sign-in`);
+    return res.ok;
+  } catch {
+    return false;
+  }
+}

@@ -69,9 +69,10 @@ export function validateVideoMetadata(
   durationSeconds: number,
   width: number,
   height: number,
+  maxDurationSeconds: number = MAX_VIDEO_DURATION_SECONDS,
 ): MediaValidationError | null {
-  if (durationSeconds > MAX_VIDEO_DURATION_SECONDS) {
-    return { error: "Videos must be 5 minutes or under." };
+  if (durationSeconds > maxDurationSeconds) {
+    return { error: `Videos must be ${Math.round(maxDurationSeconds / 60)} minutes or under.` };
   }
   const longEdge = Math.max(width, height);
   const shortEdge = Math.min(width, height);

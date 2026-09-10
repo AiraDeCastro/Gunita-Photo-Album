@@ -135,6 +135,7 @@ export type Database = {
           id: string
           kind: Database["public"]["Enums"]["media_kind"]
           purge_at: string | null
+          sort_order: number
           storage_path: string
           thumbnail_storage_path: string | null
           uploader_id: string
@@ -150,6 +151,7 @@ export type Database = {
           id?: string
           kind: Database["public"]["Enums"]["media_kind"]
           purge_at?: string | null
+          sort_order?: number
           storage_path: string
           thumbnail_storage_path?: string | null
           uploader_id: string
@@ -165,6 +167,7 @@ export type Database = {
           id?: string
           kind?: Database["public"]["Enums"]["media_kind"]
           purge_at?: string | null
+          sort_order?: number
           storage_path?: string
           thumbnail_storage_path?: string | null
           uploader_id?: string
@@ -193,18 +196,24 @@ export type Database = {
           email: string
           id: string
           plan: Database["public"]["Enums"]["plan_tier"]
+          stripe_customer_id: string | null
+          stripe_subscription_id: string | null
         }
         Insert: {
           created_at?: string
           email: string
           id: string
           plan?: Database["public"]["Enums"]["plan_tier"]
+          stripe_customer_id?: string | null
+          stripe_subscription_id?: string | null
         }
         Update: {
           created_at?: string
           email?: string
           id?: string
           plan?: Database["public"]["Enums"]["plan_tier"]
+          stripe_customer_id?: string | null
+          stripe_subscription_id?: string | null
         }
         Relationships: []
       }

@@ -85,4 +85,16 @@ describe("validateVideoMetadata", () => {
     const landscape = validateVideoMetadata(60, MAX_VIDEO_LONG_EDGE, MAX_VIDEO_SHORT_EDGE + 1);
     expect(landscape?.error).toMatch(/1080p/);
   });
+
+  it("honors a custom duration ceiling (paid plan) instead of the default", () => {
+    const tenMinutes = 10 * 60;
+    expect(validateVideoMetadata(tenMinutes, 1920, 1080, tenMinutes)).toBeNull();
+
+    const overPaidCap = validateVideoMetadata(tenMinutes + 1, 1920, 1080, tenMinutes);
+    expect(overPaidCap?.error).toMatch(/10 minutes/);
+
+    // Still enforced at the free-tier default when no override is passed.
+    const overFreeDefault = validateVideoMetadata(tenMinutes, 1920, 1080);
+    expect(overFreeDefault?.error).toMatch(/5 minutes/);
+  });
 });

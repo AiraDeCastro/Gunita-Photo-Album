@@ -3,17 +3,19 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { MEDIA_BUCKET } from "@/lib/storage/media";
 import {
-  FREE_TIER_BYTES,
   formatBytes,
   getStorageUsageBytes,
+  tierBytesForPlan,
   wouldExceedQuota,
 } from "@/lib/storage/quota";
 import {
+  MAX_VIDEO_DURATION_SECONDS,
   extensionForMime,
   kindForMime,
   validateFile,
   validateVideoMetadata,
 } from "@/lib/media/constraints";
+import { PAID_MAX_VIDEO_DURATION_SECONDS } from "@/lib/stripe/plans";
 
 /**
  * Handles the actual file bytes — a Route Handler rather than a Server
@@ -45,11 +47,19 @@ export async function POST(request: NextRequest) {
   const fileError = validateFile(file);
   if (fileError) return NextResponse.json(fileError, { status: 400 });
 
+  const { data: profile, error: profileError } = await supabase
+    .from("profiles")
+    .select("plan")
+    .eq("id", user.id)
+    .single();
+  if (profileError) throw profileError;
+  const tierBytes = tierBytesForPlan(profile.plan);
+
   const currentUsage = await getStorageUsageBytes(user.id);
-  if (wouldExceedQuota(currentUsage, file.size)) {
+  if (wouldExceedQuota(currentUsage, file.size, tierBytes)) {
     return NextResponse.json(
       {
-        error: `This upload would put you over your ${formatBytes(FREE_TIER_BYTES)} free storage limit (${formatBytes(currentUsage)} used). Delete some media or upgrade your plan.`,
+        error: `This upload would put you over your ${formatBytes(tierBytes)} storage limit (${formatBytes(currentUsage)} used). Delete some media or upgrade your plan.`,
       },
       { status: 400 },
     );
@@ -57,7 +67,9 @@ export async function POST(request: NextRequest) {
 
   const kind = kindForMime(file.type)!;
   if (kind === "video" && durationSeconds !== null && width !== null && height !== null) {
-    const videoError = validateVideoMetadata(durationSeconds, width, height);
+    const maxDuration =
+      profile.plan === "paid" ? PAID_MAX_VIDEO_DURATION_SECONDS : MAX_VIDEO_DURATION_SECONDS;
+    const videoError = validateVideoMetadata(durationSeconds, width, height, maxDuration);
     if (videoError) return NextResponse.json(videoError, { status: 400 });
   }
 
