@@ -50,17 +50,16 @@ below for the two deploy-only bugs that surfaced along the way — both are
 exactly the kind of thing that only shows up once real infrastructure is
 involved, not in local dev.
 
-Milestone 10 (v1.1) is done: the public landing page, set/replace album
-cover, password reset, search across albums, year-based browse-home rows,
-drag-to-reorder media, and Stripe billing with paid-plan video ceilings
-are all real now (see "Browse experience", "Media & storage", "Password
-reset", and "Billing" below for each). Billing has been verified live
-against real Stripe test-mode objects — a real Checkout, a real webhook
-payload replayed against the local server, a real Customer Portal
-cancellation — not just the automated webhook tests. What's not done yet
-is deploying it: the Stripe env vars and a production webhook endpoint
-still need setting up in Vercel/Stripe's dashboards, the same shape of
-work as Milestone 9's post-code deploy step.
+Milestone 10 (v1.1) is done, deployed, and verified in production: the
+public landing page, set/replace album cover, password reset, search
+across albums, year-based browse-home rows, drag-to-reorder media, and
+Stripe billing with paid-plan video ceilings are all real and live (see
+"Browse experience", "Media & storage", "Password reset", and "Billing"
+below for each). Getting billing working in production surfaced a real
+bug worth knowing before touching schema again: two migrations had been
+verified locally but never pushed to the cloud project (`supabase db
+reset` only touches local Postgres) — see "Deploying to production"
+below for the full story and the fix.
 
 ## Local backend (Supabase via Docker)
 
@@ -103,6 +102,20 @@ Local endpoints once `supabase start` has been run:
   migration new <name>`, run from WSL), then apply with `supabase db reset`
   (safe pre-launch — it drops and recreates the local DB from migrations,
   no data to lose yet).
+- **`supabase db reset` only ever touches the local database — it says
+  nothing about production.** Two migrations (`add_media_sort_order`,
+  `add_stripe_billing_fields`) shipped, got verified thoroughly against
+  local Postgres, got committed, and sat unpushed to the linked cloud
+  project for over a week before anyone noticed — because every local
+  check kept passing, there was no signal that anything was missing until
+  a real production request hit `column profiles.stripe_customer_id does
+  not exist`. `supabase migration list` shows a `remote` column blank for
+  anything that hasn't reached the cloud project; run it before assuming
+  "it's committed" means "it's deployed," and run `supabase db push`
+  (from wherever the CLI is actually logged in — WSL and Windows-native
+  `npx supabase` are separate login sessions on this machine, see below)
+  as part of shipping any migration, not as an afterthought at next
+  deploy.
 - RLS is the real enforcement for the role matrix — not just UI
   conditionals. `CAN_EDIT`/`CAN_MANAGE_MEMBERS` in `src/lib/albums/types.ts`
   gate the UI to match, but the DB would reject an unauthorized mutation
@@ -464,7 +477,7 @@ Don't build v1.1/v2 features into the current pass unless explicitly asked.
 
 Live at `gunita-photo-album.vercel.app`, Vercel project `gunita-photo-album`
 under the `aira-de-castro` team, connected to cloud Supabase project
-`dvzeqiavilidqpbvcdof`. Three real bugs only showed up once actual
+`dvzeqiavilidqpbvcdof`. Four real bugs only showed up once actual
 infrastructure was involved — none of them were catchable by local dev,
 build, lint, or the test suite, only by loading and using the live site:
 
@@ -491,12 +504,37 @@ build, lint, or the test suite, only by loading and using the live site:
   constraints.ts` is now 45MB, not 1GB, specifically because of this
   cloud project's plan, not a product decision — raising it later is a
   paid-plan/Storage-tier lever, document it there if it changes.
+- **Two schema migrations shipped and got verified locally without ever
+  reaching the cloud project** (`add_media_sort_order`,
+  `add_stripe_billing_fields`) — `supabase db reset` only ever applies to
+  the local database, and nothing forces a `supabase db push` alongside
+  it. This sat unnoticed until a real Stripe checkout hit `column
+  profiles.stripe_customer_id does not exist` in production. See the new
+  bullet in "Schema & client" above — `supabase migration list`'s
+  `remote` column is the actual source of truth for "did this reach
+  production," not "is it committed." Fixed by pushing both migrations
+  (`supabase db push`) — no data loss, both were purely additive
+  (new columns, one dropped policy nothing depended on).
 
-Given all three, treat "the build passed" and "it loaded once" as
+For what it's worth, Vercel's newer "Secret" vs "Config" env var type
+(the redesigned dialog, not the legacy CLI-style reference from bullet
+one above) **did** work correctly once tried — `STRIPE_SECRET_KEY` and
+`STRIPE_WEBHOOK_SECRET` as Secret type reached the running app fine. The
+symptom that looked like a repeat of the first bug (checkout 500ing right
+after switching those two to Secret type) turned out to be the migration
+gap above, unrelated. Worth remembering next time something breaks right
+after touching env var types: check the actual server log before assuming
+history is repeating itself.
+
+Given all four, treat "the build passed" and "it loaded once" as
 insufficient proof a deploy actually works — the golden-path smoke test
 (sign up → shared album → invite → upload → edit → delete → restore) is
 what actually caught the second and third bugs above, run **against the
-live URL**, not local dev, with fresh throwaway accounts.
+live URL**, not local dev, with fresh throwaway accounts. Billing
+specifically was verified the same way: a real Checkout completion, a
+real webhook delivery Stripe made on its own (no manual replay needed,
+unlike local dev — production has a real reachable URL), a real Customer
+Portal cancellation, and its real webhook flipping the plan back.
 
 ## Stack & conventions
 

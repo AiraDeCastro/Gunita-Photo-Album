@@ -11,22 +11,23 @@ decisions if you're working on this codebase.
 
 ## Status
 
-**v1 shipped, v1.1 feature-complete**: live in production on Vercel,
-connected to a cloud Supabase project. Auth, private/shared albums with
-Owner/Admin/Editor/Viewer roles, photo & video upload, a real 15 GB/account
-storage cap, a 30-day Recently Deleted window, and the full browse
-experience (hero, hover-preview rows, lightbox, search, year-based rows)
-are all implemented against a real Supabase backend — nothing runs on mock
-data. Password reset, drag-to-reorder media, and Stripe billing (a real
-$5/mo paid plan — 100GB storage, 10-minute videos) are done too. Automated
-tests cover the pure validation/quota logic, the role-permission matrix
-against real Row Level Security policies, and the Stripe webhook against a
-real running server, and the full golden path (sign up → shared album →
-invite → upload → edit → delete → restore) has been verified against the
-live deployment itself, not just locally. See `CLAUDE.md`'s "Deploying to
-production" and "Billing" sections for deploy-specific gotchas worth
-knowing before touching infra config — billing in particular still needs
-its production webhook/env vars set up (see "Deploying" below).
+**v1 and v1.1 shipped**: live in production on Vercel, connected to a
+cloud Supabase project. Auth, private/shared albums with Owner/Admin/
+Editor/Viewer roles, photo & video upload, a real 15 GB/account storage
+cap, a 30-day Recently Deleted window, and the full browse experience
+(hero, hover-preview rows, lightbox, search, year-based rows) are all
+implemented against a real Supabase backend — nothing runs on mock data.
+Password reset, drag-to-reorder media, and Stripe billing (a real $5/mo
+paid plan — 100GB storage, 10-minute videos) are live too, webhook and
+all. Automated tests cover the pure validation/quota logic, the
+role-permission matrix against real Row Level Security policies, and the
+Stripe webhook against a real running server, and the full golden path
+(sign up → shared album → invite → upload → edit → delete → restore) has
+been verified against the live deployment itself, not just locally. See
+`CLAUDE.md`'s "Deploying to production" and "Billing" sections for
+deploy-specific gotchas worth knowing before touching infra config —
+including a real one where two schema migrations were verified locally
+but never reached production until someone noticed.
 
 ## Stack
 

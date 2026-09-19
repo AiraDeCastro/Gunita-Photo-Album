@@ -233,7 +233,7 @@ Small items requested after v1 shipped that don't map to a PRD milestone.
   already-signed-in visitor to `/`, and other protected routes
   (`/account`) still redirect signed-out visitors to `/sign-in` as before.
 
-## Milestone 10 — v1.1 *(done, except pushing prod webhook/env config)*
+## Milestone 10 — v1.1 *(done, deployed, and verified in production)*
 
 - [x] Stripe billing integration and paid storage tiers — test-mode
   account created (same one-time human step as Vercel/Supabase in
@@ -282,16 +282,32 @@ Small items requested after v1 shipped that don't map to a PRD milestone.
   Supabase upgrade happens — flagged in `src/lib/stripe/plans.ts` rather
   than silently shipped as if the two ceilings were independent.
 
-**Not yet done** — infra config that only matters once this deploys,
-same shape as Milestone 9's Vercel/Supabase env var dance: the Stripe
-test keys, price id, and a **production** webhook secret (from a real
-webhook endpoint registered against the live Vercel URL, not the
-local-only placeholder in `.env.local`) still need to go into Vercel's
-environment variables, and a webhook endpoint needs registering in the
-Stripe dashboard pointed at `https://gunita-photo-album.vercel.app/api/
-stripe/webhook`. Flagging this explicitly rather than assuming "the code
-is done" means "it works in production" — Milestone 9 already taught
-that lesson once.
+**Deployed and verified live in production.** The Stripe test keys, price
+id, and a real production webhook secret (from a webhook endpoint
+registered in the Stripe dashboard against `https://gunita-photo-album.
+vercel.app/api/stripe/webhook`, listening for `checkout.session.completed`/
+`customer.subscription.updated`/`customer.subscription.deleted`) are set
+in Vercel. Getting there surfaced one more real bug, in the same spirit as
+Milestone 9's deploy-only bugs: **two migrations
+(`add_media_sort_order`, `add_stripe_billing_fields`) had been applied
+and tested locally via `supabase db reset` but never pushed to the linked
+cloud project** — `db reset` only ever touches local Postgres, and
+nothing forces a `supabase db push` alongside it. This sat unnoticed
+(build/lint/tests all passed, local verification all passed) until a real
+production checkout hit `column profiles.stripe_customer_id does not
+exist`. Fixed with `supabase db push` (both migrations were purely
+additive — no data at risk). See `CLAUDE.md`'s "Schema & client" and
+"Deploying to production" sections for the full story — this is a real
+gotcha worth checking (`supabase migration list`'s `remote` column) after
+any future migration, not just when something breaks.
+
+Verified live end-to-end against production with a fresh throwaway
+account after the fix: real Checkout completion → real webhook delivered
+by Stripe itself (no manual replay needed this time, unlike local dev —
+production has a real reachable URL) → Account page showed Paid/100GB →
+real Customer Portal → canceled via the Stripe API → real
+`customer.subscription.deleted` webhook → Account page correctly fell
+back to Free/15GB.
 - [x] Password reset flow — `/forgot-password` (request a reset email,
   `requestPasswordReset` action) and `/reset-password` (set the new
   password, `updatePassword` action) in `src/lib/auth/actions.ts`. Both
