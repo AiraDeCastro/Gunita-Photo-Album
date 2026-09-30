@@ -71,6 +71,7 @@ export default function MediaUploader({
   const [tasks, setTasks] = useState<UploadTask[]>([]);
   const [dragging, setDragging] = useState(false);
   const [openIndex, setOpenIndex] = useState<number | null>(null);
+  const [openOrigin, setOpenOrigin] = useState<DOMRect | null>(null);
   const [items, setItems] = useState(media);
   const [dragItemIndex, setDragItemIndex] = useState<number | null>(null);
   const [dropTargetIndex, setDropTargetIndex] = useState<number | null>(null);
@@ -250,7 +251,10 @@ export default function MediaUploader({
                 canReorder={canUpload}
                 isCover={item.id === coverMediaId}
                 isDropTarget={dropTargetIndex === i && dragItemIndex !== i}
-                onOpen={() => setOpenIndex(i)}
+                onOpen={(rect) => {
+                  setOpenOrigin(rect);
+                  setOpenIndex(i);
+                }}
                 onDragStart={() => setDragItemIndex(i)}
                 onDragEnter={() => setDropTargetIndex(i)}
                 onDragEndReorder={() => {
@@ -279,7 +283,11 @@ export default function MediaUploader({
         <Lightbox
           media={items}
           index={openIndex}
-          onClose={() => setOpenIndex(null)}
+          origin={openOrigin}
+          onClose={() => {
+            setOpenIndex(null);
+            setOpenOrigin(null);
+          }}
           onNavigate={setOpenIndex}
         />
       )}
@@ -308,7 +316,7 @@ function MediaTile({
   canReorder: boolean;
   isCover: boolean;
   isDropTarget: boolean;
-  onOpen: () => void;
+  onOpen: (rect: DOMRect) => void;
   onDragStart: () => void;
   onDragEnter: () => void;
   onDragEndReorder: () => void;
@@ -340,7 +348,7 @@ function MediaTile({
     >
       <button
         type="button"
-        onClick={onOpen}
+        onClick={(e) => onOpen(e.currentTarget.getBoundingClientRect())}
         aria-label={`Open ${item.kind}`}
         className="absolute inset-0 z-0 h-full w-full cursor-pointer focus-visible:z-10 focus-visible:outline-2 focus-visible:outline-accent"
       >

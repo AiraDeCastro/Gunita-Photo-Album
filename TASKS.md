@@ -364,6 +364,46 @@ back to Free/15GB.
   sort order — `src/app/page.tsx`. Verified live via `get_page_text`
   (a "2026" row appears with the test album in it).
 
+## Post-v1.1 additions
+
+Small delight/interaction items requested after Milestone 10 shipped, ahead
+of starting Milestone 11.
+
+- [x] Lightbox opens with a FLIP scale/crossfade transition from the
+  clicked thumbnail — `MediaTile` passes the clicked tile's
+  `getBoundingClientRect()` into `Lightbox` as a new `origin` prop; a
+  `useLayoutEffect` computes the delta transform from that rect to the
+  centered dialog's own final rect and animates it in via `requestAnimationFrame`,
+  plus a separate opacity fade on the backdrop. Reduced-motion is already
+  handled for free by the existing global `prefers-reduced-motion` CSS
+  rule (`globals.css`), which zeroes transition durations regardless of
+  the inline styles this sets.
+- [x] Full keyboard shortcuts on the browse home — `/` focuses search,
+  `n` opens the new-album form (now controllable via optional `open`/
+  `onOpenChange` props on `CreateAlbumForm`, defaulting to its old
+  internal-state behavior when unused), and Left/Right arrows move focus
+  between album cards in the same row (`data-album-row`/`data-album-card`
+  attributes + DOM traversal in `BrowseHome`, scoped to only act when
+  focus is already on a card so it never fights normal text-input
+  behavior). Verified live including edge cases: arrow-key clamping at a
+  row's last card, and shortcuts correctly backing off while typing in
+  the search box.
+- [x] Site-wide footer — `src/components/Footer.tsx`, rendered once in
+  `src/app/layout.tsx` after `{children}`; relies on every page's
+  existing `flex-1` content wrapper to pin it to the viewport bottom on
+  short pages without any extra layout work.
+- [x] Dictionary-entry styling for the "Tagalog for memory" tagline —
+  `Landing.tsx`'s hero eyebrow now reads as an actual dictionary entry
+  (headword "gunitâ", part of speech, one numbered sense), replacing the
+  old plain-text tagline.
+- [x] Themed mobile scroll bar on album rows — `.scroll-row` in
+  `globals.css` styles the horizontal-scroll thumb/track with the site's
+  own `--border`/`--text-faint` tokens via both `scrollbar-color`
+  (Firefox) and `::-webkit-scrollbar-*` (Chrome/Safari, including
+  mobile), replacing the old Firefox-only `scrollbar-width: thin` that
+  left phones on the default OS-gray bar. Verified live at a 314px
+  viewport with an overflowing row.
+
 ## Milestone 11 — v2
 
 - [ ] Public, view-only link sharing

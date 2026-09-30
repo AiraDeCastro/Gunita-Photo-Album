@@ -24,9 +24,18 @@ export default function Landing() {
     <>
       <section className="relative overflow-hidden bg-gradient-to-b from-accent-soft/50 via-bg to-bg">
         <div className="mx-auto max-w-2xl px-6 md:px-10 py-24 md:py-32 text-center">
-          <p className="mb-4 font-mono text-xs uppercase tracking-wide text-text-muted">
-            Tagalog for memory
-          </p>
+          <div className="mb-6 inline-block text-left">
+            <p className="font-display text-lg italic text-text">
+              gunitâ{" "}
+              <span className="font-mono text-xs not-italic uppercase tracking-wide text-text-muted">
+                noun
+              </span>
+            </p>
+            <p className="mt-1 text-sm text-text-muted">
+              <span className="text-text-faint">1.</span> recollection; memory;
+              remembrance; reminiscence
+            </p>
+          </div>
           <h1 className="font-display text-4xl md:text-6xl font-medium text-balance text-text">
             Your photos and videos, browsed like a story worth revisiting.
           </h1>

@@ -32,6 +32,7 @@ export default function AlbumCard({ album }: { album: AlbumSummary }) {
   return (
     <Link
       href={`/album/${album.id}`}
+      data-album-card
       onMouseEnter={() => {
         setHovering(true);
         setEverHovered(true);

@@ -5,8 +5,19 @@ import { createAlbum, type ActionState } from "@/lib/albums/actions";
 
 const initialState: ActionState = { error: null };
 
-export default function CreateAlbumForm() {
-  const [open, setOpen] = useState(false);
+export default function CreateAlbumForm({
+  open: openProp,
+  onOpenChange,
+}: {
+  /** Omit both props for the self-contained (uncontrolled) usage — passing
+   * them lets a parent open this from elsewhere, e.g. BrowseHome's "n" for
+   * new album keyboard shortcut. */
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+} = {}) {
+  const [internalOpen, setInternalOpen] = useState(false);
+  const open = openProp ?? internalOpen;
+  const setOpen = onOpenChange ?? setInternalOpen;
   const [state, formAction, pending] = useActionState(createAlbum, initialState);
 
   if (!open) {

@@ -61,6 +61,14 @@ verified locally but never pushed to the cloud project (`supabase db
 reset` only touches local Postgres) — see "Deploying to production"
 below for the full story and the fix.
 
+A handful of small delight/interaction items landed after Milestone 10,
+ahead of starting Milestone 11 (v2): a FLIP-animated Lightbox open
+transition, full keyboard shortcuts on the browse home (`/`, `n`, arrow
+keys between cards), a site-wide footer, dictionary-entry styling for the
+landing page's tagline, and a themed (not browser-default) mobile scroll
+bar on album rows — see "Browse experience" below for the technical
+details on each.
+
 ## Local backend (Supabase via Docker)
 
 Postgres + Auth + Storage run locally through the Supabase CLI in Docker
@@ -412,6 +420,36 @@ Local endpoints once `supabase start` has been run:
     exactly the same reason a *real* drag works fine (the user's mouse
     movement naturally spans multiple render cycles) and a same-tick
     synthetic one doesn't.
+- **Lightbox open transition (post-v1.1)**: `Lightbox` takes an `origin?:
+  DOMRect | null` prop — the clicked `MediaTile`'s
+  `getBoundingClientRect()`, captured on click. A mount-only
+  `useLayoutEffect` measures the dialog's own final rect, computes the
+  delta transform back to `origin`, applies it inline with
+  `transition: none`, forces a reflow (`el.offsetWidth`), then flips to
+  the identity transform inside `requestAnimationFrame` with a real CSS
+  transition — a standard FLIP (First-Last-Invert-Play). The backdrop
+  fades in separately via a `backdropVisible` state flipped on mount.
+  Needs no extra `prefers-reduced-motion` handling — the existing global
+  rule in `globals.css` zeroes out transition durations with `!important`,
+  which beats these inline `transition` styles regardless of specificity.
+- **Keyboard shortcuts on the browse home (post-v1.1)**: a single
+  `keydown` listener in `BrowseHome` handles `/` (focus search), `n`/`N`
+  (open the new-album form, guarded against modifier keys and against
+  firing while already typing in an input), and Left/Right arrows (move
+  focus between `[data-album-card]` elements within the nearest
+  `[data-album-row]` ancestor of the current focus target, via
+  `closest`/`querySelectorAll` rather than prop-drilled state, clamped at
+  each row's ends). `CreateAlbumForm` gained optional `open`/
+  `onOpenChange` props (`openProp ?? internalOpen`) so `n` can drive it
+  externally while its other call site (the zero-albums empty state on
+  `src/app/page.tsx`) keeps working with no props at all.
+- **Themed mobile scroll bar (post-v1.1)**: `AlbumRow`'s horizontally
+  scrolling row used to set only `scrollbar-width: thin`, which Chrome/
+  Safari (desktop and mobile) ignore entirely, leaving the OS's default
+  gray bar. The new `.scroll-row` class in `globals.css` styles both
+  `scrollbar-color` (Firefox) and `::-webkit-scrollbar-*` (Chrome/Safari)
+  using the theme's own `--border`/`--text-faint` tokens, so it reads as
+  part of the warm palette on every engine, phone included.
 
 ### Non-functional hardening
 
